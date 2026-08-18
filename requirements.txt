@@ -1,0 +1,61 @@
+# ==============================
+# FastAPI
+# ==============================
+fastapi
+uvicorn[standard]
+
+
+# ==============================
+# Database - PostgreSQL
+# ==============================
+SQLAlchemy
+asyncpg
+alembic
+
+
+# ==============================
+# Configuration
+# ==============================
+pydantic
+pydantic-settings
+python-dotenv
+
+
+# ==============================
+# Authentication & Security
+# ==============================
+python-jose[cryptography]
+passlib[bcrypt]
+
+
+# ==============================
+# Validation / Forms / Uploads
+# ==============================
+python-multipart
+email-validator
+
+
+# ==============================
+# HTTP Client
+# ==============================
+httpx
+
+
+# ==============================
+# Testing
+# ==============================
+pytest
+pytest-asyncio
+httpx
+
+
+# ==============================
+# Logging
+# ==============================
+structlog
+
+
+# ==============================
+# Production Server
+# ==============================
+gunicorn
