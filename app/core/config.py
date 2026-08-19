@@ -21,6 +21,12 @@ class Settings(BaseSettings):
     GOOGLE_CLIENT_ID: str
     GOOGLE_CLIENT_SECRET: str
     GOOGLE_REDIRECT_URI: str
+    
+    # File Storage
+    STORAGE_TYPE: str = "local"
+    STORAGE_LOCAL_PATH: str = "storage/uploads"
+    PUBLIC_BASE_URL: str = "http://localhost:8000"
+    MAX_UPLOAD_SIZE: int = 10 * 1024 * 1024  # 10 MB
 
     model_config = SettingsConfigDict(
         env_file=".env",
