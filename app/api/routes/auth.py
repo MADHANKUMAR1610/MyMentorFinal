@@ -102,30 +102,29 @@ async def google_callback(
     code: str,
     session: AsyncSession = Depends(get_db),
 ):
-
     service = GoogleAuthService(session)
 
     try:
-
-        user, jwt_token = await service.authenticate_with_code(
-            code
-        )
+        user, jwt_token = await service.authenticate_with_code(code)
 
     except ValueError as exc:
-
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(exc),
         )
 
     except Exception as exc:
-
         print("Google OAuth Error:", exc)
 
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Google authentication failed.",
         )
+
+    return RedirectResponse(
+        url=f"http://localhost:3000/auth/callback?token={jwt_token}",
+        status_code=status.HTTP_302_FOUND,
+    )
 
     # Redirect back to React frontend
     frontend_url = "http://localhost:3000"
