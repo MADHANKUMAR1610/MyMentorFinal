@@ -61,3 +61,11 @@ class FileResponse(BaseModel):
     is_deleted: bool
     created_at: datetime
     updated_at: datetime
+
+
+class FileUploadResponse(BaseModel):
+    id: UUID
+    file_name: str
+    file_url: str
+    content_type: str | None
+    size: int

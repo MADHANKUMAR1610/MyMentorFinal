@@ -26,11 +26,11 @@ from app.api.routes.checkpoints import (
 )
 from app.api.routes.progress import router as progress_router
 
-
+from app.api.routes.files import router as files_router
 api_router.include_router(auth_router)
 
 api_router.include_router(users_router)
-
+api_router.include_router(files_router)
 api_router.include_router(profiles_router)
 api_router.include_router(career_personas_router)
 api_router.include_router(mentors_router)
