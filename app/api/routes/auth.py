@@ -76,11 +76,12 @@ async def get_me(
     return UserResponse.model_validate(current_user)
 
 
+# ============================================================
+# GOOGLE LOGIN
+# ============================================================
+
 @router.get("/google")
 async def google_login():
-    """
-    Start Google OAuth authentication.
-    """
 
     service = GoogleAuthService(None)
 
@@ -92,38 +93,44 @@ async def google_login():
     )
 
 
-@router.get(
-    "/google/callback",
-    response_model=TokenResponse,
-)
+# ============================================================
+# GOOGLE CALLBACK
+# ============================================================
+
+@router.get("/google/callback")
 async def google_callback(
     code: str,
     session: AsyncSession = Depends(get_db),
 ):
-    """
-    Handle Google's OAuth callback.
-    """
 
     service = GoogleAuthService(session)
 
     try:
+
         user, jwt_token = await service.authenticate_with_code(
             code
         )
 
     except ValueError as exc:
+
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(exc),
         )
 
-    except Exception:
+    except Exception as exc:
+
+        print("Google OAuth Error:", exc)
+
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Google authentication failed.",
         )
 
-    return TokenResponse(
-        access_token=jwt_token,
-        token_type="bearer",
+    # Redirect back to React frontend
+    frontend_url = "http://localhost:3000"
+
+    return RedirectResponse(
+        url=f"{frontend_url}/auth/callback?token={jwt_token}",
+        status_code=status.HTTP_302_FOUND,
     )
