@@ -9,7 +9,7 @@ from app.api.routes.mentor_applications import (
     router as mentor_applications_router,
 )
 from app.api.routes.bookings import router as bookings_router
-
+from app.api.routes import dashboard
 api_router = APIRouter()
 from app.api.routes.companies import router as companies_router
 from app.api.routes.company_applications import (
@@ -43,6 +43,7 @@ api_router.include_router(
     company_applications_router
     
 )
+api_router.include_router(dashboard.router)
 api_router.include_router(jobs_router)
 api_router.include_router(
     job_applications_router
