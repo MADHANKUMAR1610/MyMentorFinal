@@ -67,7 +67,45 @@ async def login(
         access_token=access_token,
         token_type="bearer",
     )
+@router.post(
+    "/admin/login",
+    response_model=TokenResponse,
+)
+async def admin_login(
+    data: LoginRequest,
+    session: AsyncSession = Depends(get_db),
+):
+    service = AuthService(session)
 
+    user = await service.authenticate(
+        email=data.email,
+        password=data.password,
+    )
+
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid email or password.",
+        )
+
+    if user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required.",
+        )
+
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin account is inactive.",
+        )
+
+    access_token = service.create_token(user)
+
+    return TokenResponse(
+        access_token=access_token,
+        token_type="bearer",
+    )
 
 @router.get("/me")
 async def get_me(
