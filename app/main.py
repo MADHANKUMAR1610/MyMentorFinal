@@ -7,9 +7,7 @@ from fastapi.responses import PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.api.routes.router import api_router
-from app.api.routes.career_calendar import (
-    router as career_calendar_router,
-)
+
 from app.core.config import settings
 
 
@@ -84,15 +82,6 @@ app.include_router(
     prefix="/api",
 )
 
-
-# ============================================================
-# CAREER CALENDAR ROUTES
-# ============================================================
-
-app.include_router(
-    career_calendar_router,
-    prefix="/api",
-)
 
 
 # ============================================================
