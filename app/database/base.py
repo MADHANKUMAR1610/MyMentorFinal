@@ -18,7 +18,7 @@ from app.models.course import Course
 from app.models.level import Level
 from app.models.checkpoint import Checkpoint
 from app.models.progress import Progress
-
+from app.models.master_data import MasterData
 from app.models.file import File
 
 __all__ = [
@@ -37,5 +37,5 @@ __all__ = [
     "Level",
     "Checkpoint",
     "Progress",
-    "File",
+    "File","MasterData",
 ]

@@ -25,10 +25,10 @@ from app.api.routes.checkpoints import (
     router as checkpoints_router,
 )
 from app.api.routes.progress import router as progress_router
-
+from app.api.routes.master_data import router as master_data_router
 from app.api.routes.files import router as files_router
 api_router.include_router(auth_router)
-
+api_router.include_router(master_data_router)
 api_router.include_router(users_router)
 api_router.include_router(files_router)
 api_router.include_router(profiles_router)
