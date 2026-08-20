@@ -1,7 +1,10 @@
 from typing import Optional
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func,select
+from app.models.progress import Progress
+from app.models.level import Level
+from app.models.job_application import JobApplication
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.user_profile import UserProfile
@@ -65,3 +68,43 @@ class UserProfileRepository(BaseRepository[UserProfile]):
         )
 
         return list(result.scalars().all())
+# ========================================================
+    # PROFILE SUMMARY / SCORE
+    # ========================================================
+
+    async def get_completed_levels_count(
+        self,
+        user_id: UUID,
+    ) -> int:
+
+        result = await self.session.execute(
+            select(func.count(Progress.id))
+            .where(
+                Progress.user_id == user_id,
+                Progress.completed.is_(True),
+            )
+        )
+
+        return result.scalar_one()
+
+    async def get_total_levels_count(self) -> int:
+
+        result = await self.session.execute(
+            select(func.count(Level.id))
+        )
+
+        return result.scalar_one()
+
+    async def get_user_applications_count(
+        self,
+        user_id: UUID,
+    ) -> int:
+
+        result = await self.session.execute(
+            select(func.count(JobApplication.id))
+            .where(
+                JobApplication.applicant_user_id == user_id
+            )
+        )
+
+        return result.scalar_one()

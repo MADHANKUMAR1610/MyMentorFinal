@@ -11,6 +11,8 @@ from app.schemas.user_profile import (
     UserProfileCreate,
     UserProfileResponse,
     UserProfileUpdate,
+    ProfileSummaryResponse,
+    ScoreBreakdownResponse,
 )
 from app.services.user_profile_service import UserProfileService
 
@@ -20,7 +22,62 @@ router = APIRouter(
     tags=["User Profiles"],
 )
 
+# ============================================================
+# GET MY PROFILE SUMMARY
+# ============================================================
 
+@router.get(
+    "/me/summary",
+    response_model=ProfileSummaryResponse,
+)
+async def get_my_profile_summary(
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+):
+    """
+    Get the profile summary displayed at the top
+    of the MyMentor profile page.
+    """
+
+    service = UserProfileService(session)
+
+    profile = await service.get_by_user_id(
+        current_user.id
+    )
+
+    return await service.get_profile_summary(
+        user=current_user,
+        profile=profile,
+    )
+
+
+# ============================================================
+# GET MY SCORE BREAKDOWN
+# ============================================================
+
+@router.get(
+    "/me/score-breakdown",
+    response_model=ScoreBreakdownResponse,
+)
+async def get_my_score_breakdown(
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+):
+    """
+    Get the score breakdown displayed on
+    the MyMentor profile page.
+    """
+
+    service = UserProfileService(session)
+
+    profile = await service.get_by_user_id(
+        current_user.id
+    )
+
+    return await service.get_score_breakdown(
+        user=current_user,
+        profile=profile,
+    )
 # ============================================================
 # GET MY PROFILE
 # ============================================================

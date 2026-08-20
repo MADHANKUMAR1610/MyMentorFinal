@@ -107,3 +107,45 @@ class UserProfileResponse(BaseModel):
     career_interests: str | None
     created_at: datetime
     updated_at: datetime
+# ============================================================
+# PROFILE SUMMARY
+# ============================================================
+
+class ProfileSummaryResponse(BaseModel):
+    score: int
+    badge: str
+
+    name: str
+    career_goal: str | None = None
+
+    xp: int
+    day_streak: int
+
+    completed_levels: int
+    total_levels: int
+
+    applications: int
+
+
+# ============================================================
+# SCORE BREAKDOWN
+# ============================================================
+
+class ScoreBreakdownResponse(BaseModel):
+    total_score: int
+    max_score: int
+
+    career_clarity: int
+    career_clarity_max: int
+
+    learning_progress: int
+    learning_progress_max: int
+
+    profile_completeness: int
+    profile_completeness_max: int
+
+    consistency: int
+    consistency_max: int
+
+    job_readiness: int
+    job_readiness_max: int
