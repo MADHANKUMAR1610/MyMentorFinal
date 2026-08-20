@@ -1,3 +1,5 @@
+# app/repositories/career_persona_repository.py
+
 from typing import Optional
 from uuid import UUID
 
@@ -8,23 +10,23 @@ from app.models.career_persona import CareerPersona
 from app.repositories.base import BaseRepository
 
 
-class CareerPersonaRepository(BaseRepository[CareerPersona]):
-    """
-    Repository responsible for CareerPersona database operations.
+class CareerPersonaRepository(
+    BaseRepository[CareerPersona]
+):
 
-    Business logic belongs in the service layer.
-    """
-
-    def __init__(self, session: AsyncSession):
-        super().__init__(CareerPersona, session)
+    def __init__(
+        self,
+        session: AsyncSession,
+    ):
+        super().__init__(
+            CareerPersona,
+            session,
+        )
 
     async def get_by_user_id(
         self,
         user_id: UUID,
     ) -> Optional[CareerPersona]:
-        """
-        Get the career persona belonging to a user.
-        """
 
         result = await self.session.execute(
             select(CareerPersona).where(
@@ -41,9 +43,6 @@ class CareerPersonaRepository(BaseRepository[CareerPersona]):
         skip: int = 0,
         limit: int = 100,
     ) -> list[CareerPersona]:
-        """
-        Get career personas matching a career goal.
-        """
 
         result = await self.session.execute(
             select(CareerPersona)
@@ -54,4 +53,6 @@ class CareerPersonaRepository(BaseRepository[CareerPersona]):
             .limit(limit)
         )
 
-        return list(result.scalars().all())
+        return list(
+            result.scalars().all()
+        )
