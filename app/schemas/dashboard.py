@@ -1,35 +1,59 @@
 from pydantic import BaseModel
 
 
-class CourseDashboardItem(BaseModel):
-    course_id: str
-    title: str
-    status: str
-    total_levels: int
-    total_checkpoints: int
+# ============================================================
+# ADMIN DASHBOARD
+# ============================================================
+
+class RecentlyActiveStudent(BaseModel):
+    name: str
+    email: str | None = None
+    xp: int
+    streak: int
+    levels: int
 
 
-class AdminSkillHubDashboardResponse(BaseModel):
-    total_courses: int
-    published_courses: int
-    draft_courses: int
-    total_levels: int
-    total_checkpoints: int
+class AdminDashboardResponse(BaseModel):
     total_students: int
+    active_students: int
+
+    total_courses: int
+    total_levels: int
+    total_videos: int
+    total_coding_challenges: int
+
     completed_levels: int
-    courses: list[CourseDashboardItem]
+    learning_hours: float
+
+    daily_active: int
+    monthly_active: int
+
+    recently_active_students: list[RecentlyActiveStudent]
+
+
+# ============================================================
+# STUDENT DASHBOARD
+# ============================================================
+
 class StudentCourseDashboardItem(BaseModel):
     course_id: str
     title: str
+    difficulty: str
+    stage: str | None = None
+
     total_levels: int
     completed_levels: int
     progress_percentage: float
 
 
-class StudentSkillHubDashboardResponse(BaseModel):
-    total_courses: int
-    completed_courses: int
-    in_progress_courses: int
-    total_levels_completed: int
-    total_xp: int
-    courses: list[StudentCourseDashboardItem]
+class StudentDashboardResponse(BaseModel):
+    name: str
+
+    xp: int
+    streak: int
+
+    continue_course: StudentCourseDashboardItem | None = None
+
+    achievements: list[str]
+    recently_completed: list[str]
+    certificates: list[str]
