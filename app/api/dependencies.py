@@ -1,4 +1,5 @@
 from uuid import UUID
+from app.models.user import User
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer

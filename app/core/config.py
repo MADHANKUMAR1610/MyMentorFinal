@@ -21,7 +21,10 @@ class Settings(BaseSettings):
     GOOGLE_CLIENT_ID: str
     GOOGLE_CLIENT_SECRET: str
     GOOGLE_REDIRECT_URI: str
-    
+
+    # Gemini AI
+    GEMINI_API_KEY: str
+
     # File Storage
     STORAGE_TYPE: str = "local"
     STORAGE_LOCAL_PATH: str = "storage/uploads"

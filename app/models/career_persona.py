@@ -1,3 +1,5 @@
+# app/models/career_persona.py
+
 import uuid
 
 from sqlalchemy import ForeignKey
@@ -17,7 +19,10 @@ class CareerPersona(
 
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("users.id", ondelete="CASCADE"),
+        ForeignKey(
+            "users.id",
+            ondelete="CASCADE",
+        ),
         unique=True,
         nullable=False,
         index=True,
