@@ -125,15 +125,15 @@ class CourseJourneyService:
                     completed_checkpoint_count += 1
 
                 checkpoint_data.append(
-                    {
-                        "id": checkpoint.id,
-                        "checkpoint_order": (
-                            checkpoint.checkpoint_order
-                        ),
-                        "title": checkpoint.title,
-                        "xp": checkpoint.xp,
-                        "completed": is_completed,
-                    }
+                {
+                  "id": checkpoint.id,
+                  "checkpoint_order": checkpoint.checkpoint_order,
+                  "at_seconds": checkpoint.at_seconds,
+                  "title": checkpoint.title,
+                  "xp": checkpoint.xp,
+                 "completed": is_completed,
+                }
+   
                 )
 
             level_completed = (
@@ -220,6 +220,7 @@ class CourseJourneyService:
                         "description": (
                             level.description
                         ),
+                        "video": level.video,
                         "xp": level.xp,
                         "completed_checkpoints": (
                             item[

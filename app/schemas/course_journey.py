@@ -25,7 +25,7 @@ class CourseJourneyLevelResponse(BaseModel):
     title: str
     description: str | None = None
     xp: int
-
+    video: dict
     completed_checkpoints: int
     total_checkpoints: int
 
@@ -50,6 +50,7 @@ class CourseJourneyCourseResponse(BaseModel):
     title: str
     description: str | None = None
     language: str
+    at_seconds: int
     difficulty: str
     duration: str | None = None
     thumbnail: str | None = None
