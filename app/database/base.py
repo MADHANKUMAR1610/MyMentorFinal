@@ -15,6 +15,8 @@ from app.models.job import Job
 from app.models.job_application import JobApplication
 
 from app.models.course import Course
+from app.models.course_enrollment import CourseEnrollment
+
 from app.models.level import Level
 from app.models.checkpoint import Checkpoint
 from app.models.progress import Progress
@@ -34,8 +36,10 @@ __all__ = [
     "Job",
     "JobApplication",
     "Course",
+    "CourseEnrollment",
     "Level",
     "Checkpoint",
     "Progress",
-    "File","MasterData",
+    "File",
+    "MasterData",
 ]

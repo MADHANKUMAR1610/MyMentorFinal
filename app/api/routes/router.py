@@ -27,6 +27,11 @@ from app.api.routes.checkpoints import (
 from app.api.routes.progress import router as progress_router
 from app.api.routes.master_data import router as master_data_router
 from app.api.routes.files import router as files_router
+from app.api.routes.journey import router as journey_router
+
+api_router.include_router(
+    journey_router
+)
 api_router.include_router(auth_router)
 api_router.include_router(master_data_router)
 api_router.include_router(users_router)

@@ -9,7 +9,12 @@ from app.core.security import decode_access_token
 from app.database.database import get_db
 from app.models.user import User
 from app.repositories.user_repository import UserRepository
+from app.services.journey_service import JourneyService
 
+def get_journey_service(
+    session: AsyncSession = Depends(get_db),
+) -> JourneyService:
+    return JourneyService(session)
 
 security = HTTPBearer()
 

@@ -19,7 +19,12 @@ router = APIRouter(
     prefix="/courses",
     tags=["Courses"],
 )
-
+from app.schemas.course_enrollment import (
+    CourseEnrollmentResponse,
+)
+from app.services.course_enrollment_service import (
+    CourseEnrollmentService,
+)
 
 # ============================================================
 # CREATE COURSE
@@ -137,7 +142,42 @@ async def get_courses(
         CourseResponse.model_validate(course)
         for course in courses
     ]
+# =====================================================
+# GET MY ENROLLMENTS
+# ============================================================
 
+@router.get(
+    "/my-enrollments",
+    response_model=list[CourseEnrollmentResponse],
+)
+async def get_my_enrollments(
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+):
+    """
+    Get all courses enrolled by the authenticated user.
+    """
+
+    service = CourseEnrollmentService(session)
+
+    rows = await service.get_my_enrollments(
+        user_id=current_user.id
+    )
+
+    return [
+        CourseEnrollmentResponse(
+            id=enrollment.id,
+            course_id=course.id,
+            title=course.title,
+            description=course.description,
+            language=course.language,
+            difficulty=course.difficulty,
+            duration=course.duration,
+            thumbnail=course.thumbnail,
+            enrolled_at=enrollment.enrolled_at,
+        )
+        for enrollment, course in rows
+    ]
 
 # ============================================================
 # GET COURSE BY ID
@@ -273,3 +313,70 @@ async def delete_course(
     await service.delete_course(course)
 
     return None
+# ============================================================
+# ENROLL IN COURSE
+# ============================================================
+
+@router.post(
+    "/{course_id}/enroll",
+    response_model=CourseEnrollmentResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def enroll_in_course(
+    course_id: UUID,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+):
+    """
+    Enroll the authenticated user in a course.
+    """
+
+    service = CourseEnrollmentService(session)
+
+    try:
+        enrollment = await service.enroll_user(
+            user_id=current_user.id,
+            course_id=course_id,
+        )
+
+        await session.commit()
+
+        # Get course details
+        course = await service.course_repository.get_by_id(
+            course_id
+        )
+
+        return CourseEnrollmentResponse(
+            id=enrollment.id,
+            course_id=course.id,
+            title=course.title,
+            description=course.description,
+            language=course.language,
+            difficulty=course.difficulty,
+            duration=course.duration,
+            thumbnail=course.thumbnail,
+            enrolled_at=enrollment.enrolled_at,
+        )
+
+    except ValueError as exc:
+        await session.rollback()
+
+        message = str(exc)
+
+        if message == "Course not found.":
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=message,
+            )
+
+        if message == "You are already enrolled in this course.":
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=message,
+            )
+
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=message,
+        )
+
