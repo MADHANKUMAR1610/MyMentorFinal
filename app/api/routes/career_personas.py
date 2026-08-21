@@ -3,9 +3,7 @@
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from app.api.dependencies import get_current_user
 from app.database.database import get_db
@@ -49,86 +47,17 @@ async def create_my_career_persona(
 ):
 
     # --------------------------------------------------------
-    # 1. Get logged-in user + profile
-    # --------------------------------------------------------
-
-    result = await session.execute(
-        select(User)
-        .options(
-            selectinload(User.profile)
-        )
-        .where(User.id == current_user.id)
-    )
-
-    user = result.scalar_one_or_none()
-
-    if user is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found.",
-        )
-
-    profile = user.profile
-
-    # --------------------------------------------------------
-    # 2. Profile does not exist
-    #
-    # IMPORTANT:
-    # Do NOT return 404 here.
-    #
-    # Frontend should show class selection popup.
-    # --------------------------------------------------------
-
-    if profile is None:
-
-        return CareerPersonaFlowResponse(
-            requires_class_selection=True,
-            career_persona=None,
-        )
-
-    # --------------------------------------------------------
-    # 3. Check education / class
-    #
-    # If class_year is missing:
-    #     Show class selection popup
-    #
-    # If class_year exists:
-    #     Skip popup and continue to AI
-    # --------------------------------------------------------
-
-    if not profile.education or not profile.class_year:
-
-        return CareerPersonaFlowResponse(
-            requires_class_selection=True,
-            career_persona=None,
-        )
-
-    # --------------------------------------------------------
-    # 4. Career Persona Service
+    # 1. Career Persona Service
     # --------------------------------------------------------
 
     service = CareerPersonaService(session)
 
     existing_persona = await service.get_by_user_id(
-        user.id
+        current_user.id
     )
 
     # --------------------------------------------------------
-    # 5. Educational context ONLY
-    #
-    # Do NOT send old career_goal or career_interests.
-    #
-    # Current request goal has priority.
-    # --------------------------------------------------------
-
-    education_context = {
-        "age": profile.age,
-        "education": profile.education,
-        "class_year": profile.class_year,
-    }
-
-    # --------------------------------------------------------
-    # 6. Generate AI Career Persona
+    # 2. Generate Career Path using existing Gemini service
     # --------------------------------------------------------
 
     try:
@@ -137,7 +66,7 @@ async def create_my_career_persona(
 
         ai_result = await gemini_service.generate_career_persona(
             goal=data.goal,
-            profile=education_context,
+            profile={},
             answers=data.answers,
         )
 
@@ -149,15 +78,15 @@ async def create_my_career_persona(
         )
 
     # --------------------------------------------------------
-    # 7. Create / Update Career Persona
+    # 3. Create Career Persona
     # --------------------------------------------------------
 
     if existing_persona is None:
 
         persona = CareerPersona(
-            user_id=user.id,
+            user_id=current_user.id,
             goal=data.goal,
-            profile=education_context,
+            profile={},
             answers=data.answers,
             result=ai_result,
         )
@@ -166,18 +95,15 @@ async def create_my_career_persona(
             persona
         )
 
+    # --------------------------------------------------------
+    # 4. Update existing Career Persona
+    # --------------------------------------------------------
+
     else:
 
-        # Update current goal
         existing_persona.goal = data.goal
-
-        # Update educational context
-        existing_persona.profile = education_context
-
-        # Update answers
+        existing_persona.profile = {}
         existing_persona.answers = data.answers
-
-        # Update AI result
         existing_persona.result = ai_result
 
         persona = await service.update_persona(
@@ -185,13 +111,21 @@ async def create_my_career_persona(
         )
 
     # --------------------------------------------------------
-    # 8. Return AI Career Path
+    # 5. Return Career Path + Calendar confirmation
     # --------------------------------------------------------
 
     return CareerPersonaFlowResponse(
         requires_class_selection=False,
+
         career_persona=CareerPersonaResponse.model_validate(
             persona
+        ),
+
+        show_calendar_confirmation=True,
+
+        calendar_message=(
+            "Would you like to add this Career Plan "
+            "to your Career Calendar?"
         ),
     )
 
