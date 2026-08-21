@@ -8,7 +8,12 @@ class Settings(BaseSettings):
     APP_NAME: str = "MyMentor API"
     APP_VERSION: str = "1.0.0"
     DEBUG: bool = False
+        # Code Execution
+    CODE_EXECUTION_URL: str = (
+        "https://ce.judge0.com"
+    )
 
+    CODE_EXECUTION_API_KEY: str | None = None
     DATABASE_URL: str
 
     JWT_SECRET: str

@@ -157,9 +157,7 @@ class CheckpointResponse(BaseModel):
     starter_code: dict
     constraints: str | None
     hints: list
-    solution: str | None
     explanation: str | None
     visible_test_cases: list
-    hidden_test_cases: list
     created_at: datetime
     updated_at: datetime
