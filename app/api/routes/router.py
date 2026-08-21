@@ -31,11 +31,17 @@ from app.api.routes.journey import router as journey_router
 from app.api.routes.course_journey import (
     router as course_journey_router,
 )
+from app.api.routes.career_calendar import (
+    router as career_calendar_router,
+)
 from app.api.routes.code_execution import (
     router as code_execution_router,
 )
 api_router.include_router(
     course_journey_router
+)
+api_router.include_router(
+    career_calendar_router
 )
 api_router.include_router(
     code_execution_router

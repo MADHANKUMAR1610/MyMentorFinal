@@ -22,6 +22,7 @@ from app.models.checkpoint import Checkpoint
 from app.models.progress import Progress
 from app.models.master_data import MasterData
 from app.models.file import File
+from app.models.career_calendar import CareerCalendar
 
 __all__ = [
     "Base",
@@ -42,4 +43,5 @@ __all__ = [
     "Progress",
     "File",
     "MasterData",
+    "CareerCalendar",
 ]
