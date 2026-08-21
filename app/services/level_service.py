@@ -16,7 +16,9 @@ class LevelService:
         level_id: UUID,
     ) -> Level | None:
 
-        return await self.repository.get_by_id(level_id)
+        return await self.repository.get_by_id(
+            level_id
+        )
 
     async def get_by_course_id(
         self,
@@ -66,23 +68,43 @@ class LevelService:
             global_order
         )
 
+    async def get_levels_with_checkpoint_count(
+        self,
+        course_id: UUID,
+        *,
+        skip: int = 0,
+        limit: int = 100,
+    ):
+
+        return await self.repository.get_levels_with_checkpoint_count(
+            course_id,
+            skip=skip,
+            limit=limit,
+        )
+
     async def create_level(
         self,
         level: Level,
     ) -> Level:
 
-        return await self.repository.create(level)
+        return await self.repository.create(
+            level
+        )
 
     async def update_level(
         self,
         level: Level,
     ) -> Level:
 
-        return await self.repository.update(level)
+        return await self.repository.update(
+            level
+        )
 
     async def delete_level(
         self,
         level: Level,
     ) -> None:
 
-        await self.repository.delete(level)
+        await self.repository.delete(
+            level
+        )

@@ -4,7 +4,12 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field
 
 
+# ============================================================
+# CREATE LEVEL
+# ============================================================
+
 class LevelCreate(BaseModel):
+
     course_id: UUID
 
     stage: str = Field(
@@ -60,7 +65,12 @@ class LevelCreate(BaseModel):
     )
 
 
+# ============================================================
+# UPDATE LEVEL
+# ============================================================
+
 class LevelUpdate(BaseModel):
+
     stage: str | None = Field(
         default=None,
         max_length=50,
@@ -111,24 +121,67 @@ class LevelUpdate(BaseModel):
     theory: dict | None = None
 
 
+# ============================================================
+# LEVEL RESPONSE
+# ============================================================
+
 class LevelResponse(BaseModel):
+
     model_config = ConfigDict(
         from_attributes=True,
     )
 
     id: UUID
+
     course_id: UUID
+
     stage: str
+
     stage_order: int
+
     level_number: int
+
     global_order: int
+
     title: str
+
     description: str | None
+
     objectives: list
+
     xp: int
+
     pass_percentage: int
+
     duration: str | None
+
     video: dict
+
     theory: dict
+
     created_at: datetime
+
     updated_at: datetime
+
+
+# ============================================================
+# LEVEL DROPDOWN RESPONSE
+# ============================================================
+
+# ============================================================
+# LEVEL DROPDOWN RESPONSE
+# ============================================================
+
+class LevelDropdownResponse(BaseModel):
+
+    id: UUID
+
+    course_id: UUID
+
+    stage: str
+
+    stage_order: int
+
+    level_number: int
+
+    checkpoint_count: int

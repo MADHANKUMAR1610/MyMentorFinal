@@ -8,11 +8,14 @@ from app.database.database import get_db
 from app.models.course import Course
 from app.models.level import Level
 from app.models.user import User
+
 from app.schemas.level import (
     LevelCreate,
     LevelResponse,
     LevelUpdate,
+    LevelDropdownResponse,
 )
+
 from app.services.level_service import LevelService
 
 
@@ -36,9 +39,6 @@ async def create_level(
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
 ):
-    """
-    Create a level for a course.
-    """
 
     course = await session.get(
         Course,
@@ -53,11 +53,9 @@ async def create_level(
 
     service = LevelService(session)
 
-    existing_level = (
-        await service.get_by_course_and_level_number(
-            data.course_id,
-            data.level_number,
-        )
+    existing_level = await service.get_by_course_and_level_number(
+        data.course_id,
+        data.level_number,
     )
 
     if existing_level is not None:
@@ -98,25 +96,16 @@ async def create_level(
 async def get_levels(
     course_id: UUID | None = Query(default=None),
     stage: str | None = Query(default=None),
-    skip: int = Query(
-        default=0,
-        ge=0,
-    ),
-    limit: int = Query(
-        default=100,
-        ge=1,
-        le=100,
-    ),
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=100, ge=1, le=100),
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
 ):
-    """
-    Get levels using optional filters.
-    """
 
     service = LevelService(session)
 
     if course_id is not None:
+
         levels = await service.get_by_course_id(
             course_id,
             skip=skip,
@@ -124,6 +113,7 @@ async def get_levels(
         )
 
     elif stage is not None:
+
         levels = await service.get_by_stage(
             stage,
             skip=skip,
@@ -131,6 +121,7 @@ async def get_levels(
         )
 
     else:
+
         levels = await service.repository.get_all(
             skip=skip,
             limit=limit,
@@ -155,9 +146,6 @@ async def get_level_by_global_order(
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
 ):
-    """
-    Get a level by its global order.
-    """
 
     service = LevelService(session)
 
@@ -175,6 +163,44 @@ async def get_level_by_global_order(
 
 
 # ============================================================
+# GET LEVELS FOR DROPDOWN
+# IMPORTANT: THIS MUST COME BEFORE /{level_id}
+# ============================================================
+
+@router.get(
+    "/course/{course_id}/dropdown",
+    response_model=list[LevelDropdownResponse],
+)
+async def get_levels_for_dropdown(
+    course_id: UUID,
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=100, ge=1, le=100),
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+):
+
+    service = LevelService(session)
+
+    rows = await service.get_levels_with_checkpoint_count(
+        course_id,
+        skip=skip,
+        limit=limit,
+    )
+
+    return [
+    LevelDropdownResponse(
+        id=row.id,
+        course_id=row.course_id,
+        stage=row.stage,
+        stage_order=row.stage_order,
+        level_number=row.level_number,
+        checkpoint_count=row.checkpoint_count,
+    )
+    for row in rows
+]
+
+
+# ============================================================
 # GET LEVEL BY COURSE + LEVEL NUMBER
 # ============================================================
 
@@ -188,9 +214,6 @@ async def get_level_by_course_and_number(
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
 ):
-    """
-    Get a specific level inside a course.
-    """
 
     service = LevelService(session)
 
@@ -221,9 +244,6 @@ async def get_level_by_id(
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
 ):
-    """
-    Get a level by UUID.
-    """
 
     service = LevelService(session)
 
@@ -252,9 +272,6 @@ async def update_level(
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
 ):
-    """
-    Update a level.
-    """
 
     service = LevelService(session)
 
@@ -273,6 +290,7 @@ async def update_level(
         level.stage_order = data.stage_order
 
     if data.level_number is not None:
+
         existing_level = (
             await service.get_by_course_and_level_number(
                 level.course_id,
@@ -336,9 +354,6 @@ async def delete_level(
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
 ):
-    """
-    Delete a level.
-    """
 
     service = LevelService(session)
 
