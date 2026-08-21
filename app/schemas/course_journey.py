@@ -10,6 +10,7 @@ class CourseJourneyCheckpointResponse(BaseModel):
 
     id: UUID
     checkpoint_order: int
+    at_seconds: int
     title: str
     xp: int
     completed: bool
@@ -50,7 +51,6 @@ class CourseJourneyCourseResponse(BaseModel):
     title: str
     description: str | None = None
     language: str
-    at_seconds: int
     difficulty: str
     duration: str | None = None
     thumbnail: str | None = None
