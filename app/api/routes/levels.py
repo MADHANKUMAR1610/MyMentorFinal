@@ -368,3 +368,15 @@ async def delete_level(
     await service.delete_level(level)
 
     return None
+@router.post("/{level_id}/video-complete")
+async def complete_level_video(
+    level_id: UUID,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+):
+    service = LevelService(session)
+
+    return await service.complete_level_video(
+        user_id=current_user.id,
+        level_id=level_id,
+    )
