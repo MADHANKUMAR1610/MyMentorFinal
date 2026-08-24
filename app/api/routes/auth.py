@@ -160,12 +160,12 @@ async def google_callback(
         )
 
     return RedirectResponse(
-        url=f"http://localhost:3000/auth/callback?token={jwt_token}",
+        url=f"https://careercampus-bd89.onrender.com/auth/callback?token={jwt_token}",
         status_code=status.HTTP_302_FOUND,
     )
 
     # Redirect back to React frontend
-    frontend_url = "http://localhost:3000"
+    frontend_url = "https://careercampus-bd89.onrender.com"
 
     return RedirectResponse(
         url=f"{frontend_url}/auth/callback?token={jwt_token}",
