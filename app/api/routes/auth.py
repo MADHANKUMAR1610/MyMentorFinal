@@ -159,18 +159,10 @@ async def google_callback(
             detail="Google authentication failed.",
         )
 
-    frontend_urls = settings.cors_origins_list
+    frontend_url = settings.FRONTEND_URL.rstrip("/")
 
-    # Choose deployed frontend when available.
-    # Otherwise use localhost.
-    frontend_url = next(
-        (
-            url
-            for url in frontend_urls
-            if "careercampus-bd89.onrender.com" in url
-        ),
-        "http://localhost:3000",
-    )
+    print("Google login successful")
+    print("Redirecting to:", frontend_url)
 
     return RedirectResponse(
         url=f"{frontend_url}/auth/callback?token={jwt_token}",
