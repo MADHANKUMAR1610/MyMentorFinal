@@ -104,6 +104,19 @@ class ProgressService:
         progress: Progress,
     ) -> Progress:
 
+        existing = await self.repository.get_user_level_progress(
+            progress.user_id,
+            progress.level_id,
+        )
+
+        if existing:
+            existing.course_id = progress.course_id
+            existing.checkpoints_passed = progress.checkpoints_passed
+            existing.video_completed = progress.video_completed
+            existing.completed = progress.completed
+
+            return await self.repository.update(existing)
+
         return await self.repository.create(progress)
 
     async def update_progress(
