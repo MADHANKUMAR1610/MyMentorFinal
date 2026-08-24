@@ -9,7 +9,7 @@ from app.schemas.auth import LoginRequest, TokenResponse
 from app.schemas.user import UserCreate, UserResponse
 from app.services.auth_service import AuthService
 from app.services.google_auth_service import GoogleAuthService
-from app.core.config import settings
+
 
 router = APIRouter(
     prefix="/auth",
@@ -106,6 +106,34 @@ async def admin_login(
         access_token=access_token,
         token_type="bearer",
     )
+
+@router.get("/me")
+async def get_me(
+    current_user: User = Depends(get_current_user),
+):
+    return UserResponse.model_validate(current_user)
+
+
+# ============================================================
+# GOOGLE LOGIN
+# ============================================================
+
+@router.get("/google")
+async def google_login():
+
+    service = GoogleAuthService(None)
+
+    authorization_url = service.get_authorization_url()
+
+    return RedirectResponse(
+        url=authorization_url,
+        status_code=status.HTTP_307_TEMPORARY_REDIRECT,
+    )
+
+
+# ============================================================
+# GOOGLE CALLBACK
+# ============================================================
 
 @router.get("/google/callback")
 async def google_callback(
