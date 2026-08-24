@@ -107,34 +107,6 @@ async def admin_login(
         token_type="bearer",
     )
 
-@router.get("/me")
-async def get_me(
-    current_user: User = Depends(get_current_user),
-):
-    return UserResponse.model_validate(current_user)
-
-
-# ============================================================
-# GOOGLE LOGIN
-# ============================================================
-
-@router.get("/google")
-async def google_login():
-
-    service = GoogleAuthService(None)
-
-    authorization_url = service.get_authorization_url()
-
-    return RedirectResponse(
-        url=authorization_url,
-        status_code=status.HTTP_307_TEMPORARY_REDIRECT,
-    )
-
-
-# ============================================================
-# GOOGLE CALLBACK
-# ============================================================
-
 @router.get("/google/callback")
 async def google_callback(
     code: str,
@@ -159,13 +131,18 @@ async def google_callback(
             detail="Google authentication failed.",
         )
 
-    return RedirectResponse(
-        url=f"https://careercampus-bd89.onrender.com/auth/callback?token={jwt_token}",
-        status_code=status.HTTP_302_FOUND,
-    )
+    frontend_urls = settings.cors_origins_list
 
-    # Redirect back to React frontend
-    frontend_url = "https://careercampus-bd89.onrender.com"
+    # Choose deployed frontend when available.
+    # Otherwise use localhost.
+    frontend_url = next(
+        (
+            url
+            for url in frontend_urls
+            if "careercampus-bd89.onrender.com" in url
+        ),
+        "http://localhost:3000",
+    )
 
     return RedirectResponse(
         url=f"{frontend_url}/auth/callback?token={jwt_token}",
