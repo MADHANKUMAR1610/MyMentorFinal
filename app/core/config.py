@@ -20,7 +20,10 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 10080
 
-    CORS_ORIGINS: str = "*"
+    CORS_ORIGINS: str = (
+    "http://localhost:3000,"
+    "https://careercampus-bd89.onrender.com"
+)
 
     # Google OAuth
     GOOGLE_CLIENT_ID: str

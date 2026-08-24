@@ -9,7 +9,7 @@ from app.schemas.auth import LoginRequest, TokenResponse
 from app.schemas.user import UserCreate, UserResponse
 from app.services.auth_service import AuthService
 from app.services.google_auth_service import GoogleAuthService
-
+from app.core.config import settings
 
 router = APIRouter(
     prefix="/auth",
