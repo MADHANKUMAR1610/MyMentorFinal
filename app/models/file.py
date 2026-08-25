@@ -22,10 +22,17 @@ class File(
         index=True,
     )
 
+    # Cloudinary public_id
     storage_path: Mapped[str] = mapped_column(
         Text,
         nullable=False,
         unique=True,
+    )
+
+    # Cloudinary secure URL
+    public_url: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
     )
 
     original_filename: Mapped[str] = mapped_column(

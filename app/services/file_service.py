@@ -9,17 +9,47 @@ from app.services.storage_service import StorageService
 
 
 class FileService:
+    """
+    Service responsible for file-related business logic.
 
-    def __init__(self, session: AsyncSession):
+    Physical file storage is handled by StorageService.
+
+    StorageService can use:
+        - local storage
+        - Cloudinary
+
+    The File database record stores:
+        - storage_path
+        - public_url
+        - original filename
+        - content type
+        - file size
+        - uploaded user
+    """
+
+    def __init__(
+        self,
+        session: AsyncSession,
+    ):
         self.repository = FileRepository(session)
         self.storage = StorageService()
+
+    # =========================================================
+    # GET BY ID
+    # =========================================================
 
     async def get_by_id(
         self,
         file_id: UUID,
     ) -> File | None:
 
-        return await self.repository.get_by_id(file_id)
+        return await self.repository.get_by_id(
+            file_id
+        )
+
+    # =========================================================
+    # GET BY STORAGE PATH
+    # =========================================================
 
     async def get_by_storage_path(
         self,
@@ -29,6 +59,10 @@ class FileService:
         return await self.repository.get_by_storage_path(
             storage_path
         )
+
+    # =========================================================
+    # GET FILES BY USER
+    # =========================================================
 
     async def get_by_uploaded_by(
         self,
@@ -44,6 +78,10 @@ class FileService:
             limit=limit,
         )
 
+    # =========================================================
+    # GET ACTIVE FILES
+    # =========================================================
+
     async def get_active_files(
         self,
         *,
@@ -55,6 +93,10 @@ class FileService:
             skip=skip,
             limit=limit,
         )
+
+    # =========================================================
+    # GET DELETED FILES
+    # =========================================================
 
     async def get_deleted_files(
         self,
@@ -68,26 +110,48 @@ class FileService:
             limit=limit,
         )
 
+    # =========================================================
+    # CREATE FILE RECORD
+    # =========================================================
+
     async def create_file(
         self,
         file: File,
     ) -> File:
 
-        return await self.repository.create(file)
+        return await self.repository.create(
+            file
+        )
+
+    # =========================================================
+    # UPDATE FILE RECORD
+    # =========================================================
 
     async def update_file(
         self,
         file: File,
     ) -> File:
 
-        return await self.repository.update(file)
+        return await self.repository.update(
+            file
+        )
+
+    # =========================================================
+    # DELETE FILE RECORD
+    # =========================================================
 
     async def delete_file(
         self,
         file: File,
     ) -> None:
 
-        await self.repository.delete(file)
+        await self.repository.delete(
+            file
+        )
+
+    # =========================================================
+    # UPLOAD FILE
+    # =========================================================
 
     async def upload_file(
         self,
@@ -96,12 +160,35 @@ class FileService:
         folder: str = "files",
     ) -> tuple[File, str]:
         """
-        Upload a physical file and create its database record.
+        Upload a physical file using StorageService
+        and create the corresponding database record.
 
         Returns:
-            Tuple containing the File database record
-            and the public URL.
+            (
+                File database record,
+                public URL
+            )
+
+        For Cloudinary:
+
+            storage_path
+                = Cloudinary public_id
+
+            public_url
+                = Cloudinary secure URL
+
+        For local storage:
+
+            storage_path
+                = local relative path
+
+            public_url
+                = local API URL
         """
+
+        # =====================================================
+        # UPLOAD TO STORAGE
+        # =====================================================
 
         (
             storage_path,
@@ -112,17 +199,45 @@ class FileService:
             folder=folder,
         )
 
+        # =====================================================
+        # CREATE DATABASE RECORD
+        # =====================================================
+
         file_record = File(
             uploaded_by=uploaded_by,
+
+            # Cloudinary public_id OR
+            # local relative path
             storage_path=storage_path,
-            original_filename=file.filename or "file",
+
+            # Cloudinary secure URL OR
+            # local API URL
+            public_url=public_url,
+
+            original_filename=(
+                file.filename or "file"
+            ),
+
             content_type=file.content_type,
+
             size=file_size,
+
             is_deleted=False,
         )
+
+        # =====================================================
+        # SAVE DATABASE RECORD
+        # =====================================================
 
         created_file = await self.repository.create(
             file_record
         )
 
-        return created_file, public_url
+        # =====================================================
+        # RETURN
+        # =====================================================
+
+        return (
+            created_file,
+            public_url,
+        )
