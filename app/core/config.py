@@ -24,7 +24,11 @@ class Settings(BaseSettings):
         "http://localhost:3000,"
         "https://careercampus-bd89.onrender.com"
     )
-    FRONTEND_URL: str = "https://careercampus-bd89.onrender.com"
+    FRONTEND_LOCAL_URL: str = "http://localhost:3000"
+
+    FRONTEND_PRODUCTION_URL: str = (
+    "https://careercampus-bd89.onrender.com"
+     )
     
     # Google OAuth
     GOOGLE_CLIENT_ID: str

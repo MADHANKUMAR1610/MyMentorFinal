@@ -1,4 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+    Query,
+  
+    status,
+)
 from fastapi.responses import RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -9,13 +16,16 @@ from app.schemas.auth import LoginRequest, TokenResponse
 from app.schemas.user import UserCreate, UserResponse
 from app.services.auth_service import AuthService
 from app.services.google_auth_service import GoogleAuthService
-from app.core.config import settings
 
 router = APIRouter(
     prefix="/auth",
     tags=["Authentication"],
 )
 
+
+# ============================================================
+# REGISTER
+# ============================================================
 
 @router.post(
     "/register",
@@ -39,6 +49,10 @@ async def register(
 
     return user
 
+
+# ============================================================
+# LOGIN
+# ============================================================
 
 @router.post(
     "/login",
@@ -67,6 +81,12 @@ async def login(
         access_token=access_token,
         token_type="bearer",
     )
+
+
+# ============================================================
+# ADMIN LOGIN
+# ============================================================
+
 @router.post(
     "/admin/login",
     response_model=TokenResponse,
@@ -107,6 +127,11 @@ async def admin_login(
         token_type="bearer",
     )
 
+
+# ============================================================
+# CURRENT USER
+# ============================================================
+
 @router.get("/me")
 async def get_me(
     current_user: User = Depends(get_current_user),
@@ -118,16 +143,34 @@ async def get_me(
 # GOOGLE LOGIN
 # ============================================================
 
+# ============================================================
+# GOOGLE LOGIN
+# ============================================================
+
 @router.get("/google")
-async def google_login():
+async def google_login(
+    frontend_url: str = Query(...),
+):
+    allowed_frontends = {
+        "http://localhost:3000",
+        "https://careercampus-bd89.onrender.com",
+    }
+
+    if frontend_url not in allowed_frontends:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid frontend URL.",
+        )
 
     service = GoogleAuthService(None)
 
-    authorization_url = service.get_authorization_url()
+    google_url = service.get_authorization_url(
+        state=frontend_url
+    )
 
     return RedirectResponse(
-        url=authorization_url,
-        status_code=status.HTTP_307_TEMPORARY_REDIRECT,
+        url=google_url,
+        status_code=status.HTTP_302_FOUND,
     )
 
 
@@ -138,33 +181,74 @@ async def google_login():
 @router.get("/google/callback")
 async def google_callback(
     code: str,
+    state: str,
     session: AsyncSession = Depends(get_db),
 ):
     service = GoogleAuthService(session)
 
     try:
-        user, jwt_token = await service.authenticate_with_code(code)
+
+        user, jwt_token = (
+            await service.authenticate_with_code(
+                code
+            )
+        )
 
     except ValueError as exc:
+
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(exc),
         )
 
     except Exception as exc:
-        print("Google OAuth Error:", exc)
+
+        print(
+            "Google OAuth Error:",
+            exc,
+        )
 
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Google authentication failed.",
         )
 
-    frontend_url = settings.FRONTEND_URL.rstrip("/")
+    # --------------------------------------------------------
+    # Validate frontend
+    # --------------------------------------------------------
 
-    print("Google login successful")
-    print("Redirecting to:", frontend_url)
+    allowed_frontends = {
+        "http://localhost:3000",
+        "https://careercampus-bd89.onrender.com",
+    }
+
+    if state not in allowed_frontends:
+
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid OAuth redirect.",
+        )
+
+    frontend_url = state.rstrip("/")
+
+    # --------------------------------------------------------
+    # Redirect user to the frontend that started login
+    # --------------------------------------------------------
+
+    print(
+        "Google login successful"
+    )
+
+    print(
+        "Redirecting to:",
+        frontend_url,
+    )
 
     return RedirectResponse(
-        url=f"{frontend_url}/auth/callback?token={jwt_token}",
+        url=(
+            f"{frontend_url}"
+            f"/auth/callback"
+            f"?token={jwt_token}"
+        ),
         status_code=status.HTTP_302_FOUND,
     )
