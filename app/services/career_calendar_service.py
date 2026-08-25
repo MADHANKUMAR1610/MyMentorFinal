@@ -1,14 +1,19 @@
 from uuid import UUID
+import re
 
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.models.course import Course
 from app.models.career_calendar import CareerCalendar
+
 from app.repositories.career_calendar_repository import (
     CareerCalendarRepository,
 )
+
 from app.repositories.career_persona_repository import (
     CareerPersonaRepository,
 )
+
 from app.repositories.course_repository import (
     CourseRepository,
 )
@@ -33,6 +38,164 @@ class CareerCalendarService:
         self.course_repository = (
             CourseRepository(session)
         )
+
+    # =========================================================
+    # EXTRACT KEYWORDS FROM CAREER PERSONA
+    # =========================================================
+
+    def extract_keywords(
+        self,
+        persona,
+    ) -> list[str]:
+
+        result = persona.result or {}
+
+        text_parts: list[str] = []
+
+        # -----------------------------------------------------
+        # Career
+        # -----------------------------------------------------
+
+        if result.get("career"):
+            text_parts.append(
+                result["career"]
+            )
+
+        # -----------------------------------------------------
+        # Primary skill
+        # -----------------------------------------------------
+
+        if result.get("primary_skill"):
+            text_parts.append(
+                result["primary_skill"]
+            )
+
+        # -----------------------------------------------------
+        # Career overview
+        # -----------------------------------------------------
+
+        if result.get("career_overview"):
+            text_parts.append(
+                result["career_overview"]
+            )
+
+        # -----------------------------------------------------
+        # Recommended next step
+        # -----------------------------------------------------
+
+        if result.get("recommended_next_step"):
+            text_parts.append(
+                result["recommended_next_step"]
+            )
+
+        # -----------------------------------------------------
+        # Roadmap
+        # -----------------------------------------------------
+
+        for step in result.get("roadmap", []):
+
+            if step.get("title"):
+                text_parts.append(
+                    step["title"]
+                )
+
+            if step.get("description"):
+                text_parts.append(
+                    step["description"]
+                )
+
+        # -----------------------------------------------------
+        # Original goal
+        # -----------------------------------------------------
+
+        if persona.goal:
+            text_parts.append(
+                persona.goal
+            )
+
+        # -----------------------------------------------------
+        # Combine everything
+        # -----------------------------------------------------
+
+        text = " ".join(
+            text_parts
+        ).lower()
+
+        # -----------------------------------------------------
+        # Normalize text
+        # -----------------------------------------------------
+
+        text = re.sub(
+            r"[^a-zA-Z0-9+#.]+",
+            " ",
+            text,
+        )
+
+        words = text.split()
+
+        # -----------------------------------------------------
+        # Stop words
+        # -----------------------------------------------------
+
+        stop_words = {
+            "the",
+            "and",
+            "or",
+            "to",
+            "a",
+            "an",
+            "in",
+            "of",
+            "for",
+            "with",
+            "on",
+            "as",
+            "is",
+            "are",
+            "be",
+            "this",
+            "that",
+            "from",
+            "into",
+            "your",
+            "their",
+            "you",
+            "learn",
+            "learning",
+            "complete",
+            "master",
+            "focus",
+            "build",
+            "gain",
+            "develop",
+            "working",
+            "work",
+            "skills",
+            "skill",
+        }
+
+        # -----------------------------------------------------
+        # Extract keywords
+        # -----------------------------------------------------
+
+        keywords = [
+            word
+            for word in words
+            if word not in stop_words
+            and len(word) >= 3
+        ]
+
+        # -----------------------------------------------------
+        # Remove duplicates
+        # -----------------------------------------------------
+
+        keywords = list(
+            dict.fromkeys(
+                keywords
+            )
+        )
+
+        return keywords
 
     # =========================================================
     # ADD TO CAREER CALENDAR
@@ -115,76 +278,28 @@ class CareerCalendarService:
                 "Career persona not found."
             )
 
-        keywords: list[str] = []
+        # -----------------------------------------------------
+        # Extract keywords directly from career persona
+        # -----------------------------------------------------
 
-        # ---------------------------------------------------------
-        # 1. Get generated career from persona result
-        # ---------------------------------------------------------
-
-        if persona.result:
-
-            career = persona.result.get("career")
-
-            if career:
-                keywords.append(career)
-
-            primary_skill = (
-                persona.result.get("primary_skill")
-            )
-
-            if primary_skill:
-                keywords.append(primary_skill)
-
-        # ---------------------------------------------------------
-        # 2. Also use user's original goal
-        # ---------------------------------------------------------
-
-        if persona.goal:
-            keywords.append(persona.goal)
-
-        # ---------------------------------------------------------
-        # 3. Add important words from goal
-        # ---------------------------------------------------------
-
-        goal_lower = (
-            persona.goal.lower()
-            if persona.goal
-            else ""
-        )
-
-        if "python" in goal_lower:
-            keywords.append("Python")
-
-        if "java" in goal_lower:
-            keywords.append("Java")
-
-        if ".net" in goal_lower or "c#" in goal_lower:
-            keywords.append(".NET")
-
-        if "javascript" in goal_lower:
-            keywords.append("JavaScript")
-
-        if "react" in goal_lower:
-            keywords.append("React")
-
-        # Remove duplicates
-        keywords = list(
-            dict.fromkeys(
-                keyword.strip()
-                for keyword in keywords
-                if keyword and keyword.strip()
-            )
+        keywords = self.extract_keywords(
+            persona
         )
 
         if not keywords:
             return []
 
+        # -----------------------------------------------------
+        # Search courses using those keywords
+        # -----------------------------------------------------
+
         courses = (
-           await self.course_repository.get_courses_for_career_goal(
-    keywords=keywords,
-    user_id=user_id,
-    limit=20,
-)
+            await self.course_repository
+            .get_courses_for_career_goal(
+                keywords=keywords,
+                user_id=user_id,
+                limit=20,
+            )
         )
 
         return courses
