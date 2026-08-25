@@ -30,10 +30,6 @@ class GoogleAuthService:
     ):
         self.repository = UserRepository(session)
 
-    # =========================================================
-    # GOOGLE AUTHORIZATION URL
-    # =========================================================
-
     def get_authorization_url(
         self,
         state: str,
@@ -46,10 +42,6 @@ class GoogleAuthService:
             "scope": "openid email profile",
             "access_type": "offline",
             "prompt": "select_account",
-
-            # IMPORTANT
-            # This tells Google to return the frontend
-            # URL back to our callback.
             "state": state,
         }
 
@@ -57,10 +49,6 @@ class GoogleAuthService:
             f"{GOOGLE_AUTH_URL}"
             f"?{urlencode(params)}"
         )
-
-    # =========================================================
-    # GOOGLE CALLBACK / AUTHENTICATION
-    # =========================================================
 
     async def authenticate_with_code(
         self,
@@ -71,21 +59,13 @@ class GoogleAuthService:
             timeout=15.0
         ) as client:
 
-            # -------------------------------------------------
-            # Exchange Google authorization code for token
-            # -------------------------------------------------
-
             token_response = await client.post(
                 GOOGLE_TOKEN_URL,
                 data={
                     "code": code,
                     "client_id": settings.GOOGLE_CLIENT_ID,
-                    "client_secret": (
-                        settings.GOOGLE_CLIENT_SECRET
-                    ),
-                    "redirect_uri": (
-                        settings.GOOGLE_REDIRECT_URI
-                    ),
+                    "client_secret": settings.GOOGLE_CLIENT_SECRET,
+                    "redirect_uri": settings.GOOGLE_REDIRECT_URI,
                     "grant_type": "authorization_code",
                 },
             )
@@ -103,16 +83,11 @@ class GoogleAuthService:
                     "Google did not return an access token."
                 )
 
-            # -------------------------------------------------
-            # Get Google user information
-            # -------------------------------------------------
-
             userinfo_response = await client.get(
                 GOOGLE_USERINFO_URL,
                 headers={
-                    "Authorization": (
-                        f"Bearer {access_token}"
-                    ),
+                    "Authorization":
+                    f"Bearer {access_token}",
                 },
             )
 
@@ -120,14 +95,8 @@ class GoogleAuthService:
 
             google_user = userinfo_response.json()
 
-        # -----------------------------------------------------
-        # Extract Google user information
-        # -----------------------------------------------------
-
         google_id = google_user.get("sub")
-
         email = google_user.get("email")
-
         name = google_user.get("name") or ""
 
         if not google_id:
@@ -140,10 +109,6 @@ class GoogleAuthService:
                 "Google account email was not returned."
             )
 
-        # -----------------------------------------------------
-        # Find existing user
-        # -----------------------------------------------------
-
         user = await self.repository.get_by_google_id(
             google_id
         )
@@ -152,10 +117,6 @@ class GoogleAuthService:
             user = await self.repository.get_by_email(
                 email
             )
-
-        # -----------------------------------------------------
-        # Create new Google user
-        # -----------------------------------------------------
 
         if user is None:
 
@@ -167,13 +128,7 @@ class GoogleAuthService:
                 is_verified=True,
             )
 
-            user = await self.repository.create(
-                user
-            )
-
-        # -----------------------------------------------------
-        # Update existing user
-        # -----------------------------------------------------
+            user = await self.repository.create(user)
 
         else:
 
@@ -185,13 +140,7 @@ class GoogleAuthService:
 
             user.is_verified = True
 
-            user = await self.repository.update(
-                user
-            )
-
-        # -----------------------------------------------------
-        # Create MyMentor JWT
-        # -----------------------------------------------------
+            user = await self.repository.update(user)
 
         jwt_token = create_access_token(
             user.id

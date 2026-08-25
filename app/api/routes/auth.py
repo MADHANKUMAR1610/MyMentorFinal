@@ -3,7 +3,7 @@ from fastapi import (
     Depends,
     HTTPException,
     Query,
-  
+    Request,
     status,
 )
 from fastapi.responses import RedirectResponse
@@ -146,6 +146,9 @@ async def get_me(
 # ============================================================
 # GOOGLE LOGIN
 # ============================================================
+# ============================================================
+# GOOGLE LOGIN
+# ============================================================
 
 @router.get("/google")
 async def google_login(
@@ -187,35 +190,23 @@ async def google_callback(
     service = GoogleAuthService(session)
 
     try:
-
-        user, jwt_token = (
-            await service.authenticate_with_code(
-                code
-            )
+        user, jwt_token = await service.authenticate_with_code(
+            code
         )
 
     except ValueError as exc:
-
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(exc),
         )
 
     except Exception as exc:
-
-        print(
-            "Google OAuth Error:",
-            exc,
-        )
+        print("Google OAuth Error:", exc)
 
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Google authentication failed.",
         )
-
-    # --------------------------------------------------------
-    # Validate frontend
-    # --------------------------------------------------------
 
     allowed_frontends = {
         "http://localhost:3000",
@@ -223,7 +214,6 @@ async def google_callback(
     }
 
     if state not in allowed_frontends:
-
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid OAuth redirect.",
@@ -231,24 +221,10 @@ async def google_callback(
 
     frontend_url = state.rstrip("/")
 
-    # --------------------------------------------------------
-    # Redirect user to the frontend that started login
-    # --------------------------------------------------------
-
-    print(
-        "Google login successful"
-    )
-
-    print(
-        "Redirecting to:",
-        frontend_url,
-    )
+    print("Google login successful")
+    print("Redirecting to:", frontend_url)
 
     return RedirectResponse(
-        url=(
-            f"{frontend_url}"
-            f"/auth/callback"
-            f"?token={jwt_token}"
-        ),
+        url=f"{frontend_url}/auth/callback?token={jwt_token}",
         status_code=status.HTTP_302_FOUND,
     )
