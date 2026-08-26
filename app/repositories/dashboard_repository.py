@@ -8,7 +8,7 @@ from app.models.course import Course
 from app.models.level import Level
 from app.models.progress import Progress
 from app.models.user import User
-
+from app.models.course_enrollment import CourseEnrollment
 
 class DashboardRepository:
 
@@ -218,6 +218,11 @@ class DashboardRepository:
         self,
         user_id,
     ):
+        """
+        Get all courses enrolled by the student with
+        real-time level progress.
+        """
+
         result = await self.session.execute(
             select(
                 Course.id,
@@ -231,36 +236,55 @@ class DashboardRepository:
                 ).label("total_levels"),
 
                 func.count(
-                    func.distinct(
-                        Progress.level_id
-                    )
+                    func.distinct(Progress.level_id)
                 )
                 .filter(
                     Progress.completed.is_(True)
                 )
                 .label("completed_levels"),
             )
+        # ----------------------------------------------------
+        # ONLY COURSES THE USER IS ENROLLED IN
+        # ----------------------------------------------------
             .join(
-                Level,
-                Level.course_id == Course.id,
-            )
+            CourseEnrollment,
+            CourseEnrollment.course_id == Course.id,
+        )
+
+        # ----------------------------------------------------
+        # INCLUDE COURSES EVEN IF THEY HAVE 0 LEVELS
+        # ----------------------------------------------------
             .outerjoin(
-                Progress,
-                (
-                    Progress.level_id == Level.id
-                )
-                & (
-                    Progress.user_id == user_id
-                ),
+            Level,
+            Level.course_id == Course.id,
+        )
+
+        # ----------------------------------------------------
+        # GET THIS USER'S PROGRESS ONLY
+        # ----------------------------------------------------
+            .outerjoin(
+            Progress,
+            (
+                Progress.level_id == Level.id
             )
+            & (
+                Progress.user_id == user_id
+            ),
+        )
+
+            .where(
+            CourseEnrollment.user_id == user_id,
+        )
+
             .group_by(
-                Course.id,
-                Course.title,
-                Course.difficulty,
-            )
+            Course.id,
+            Course.title,
+            Course.difficulty,
+        )
+
             .order_by(
-                Course.created_at.desc()
-            )
+            Course.created_at.desc()
+        )
         )
 
         return result.all()

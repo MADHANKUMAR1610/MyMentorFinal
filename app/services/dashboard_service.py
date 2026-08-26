@@ -125,6 +125,10 @@ class DashboardService:
                 "Student not found."
             )
 
+        # ----------------------------------------------------
+        # Get ALL courses enrolled by this student
+        # ----------------------------------------------------
+
         course_rows = (
             await self.repository.get_student_courses(
                 user_id
@@ -143,13 +147,17 @@ class DashboardService:
                 row.completed_levels or 0
             )
 
+            # ------------------------------------------------
+            # Calculate real-time progress
+            # ------------------------------------------------
+
             if total_levels > 0:
                 percentage = (
                     completed_levels
                     / total_levels
                 ) * 100
             else:
-                percentage = 0
+                percentage = 0.0
 
             courses.append(
                 StudentCourseDashboardItem(
@@ -157,38 +165,17 @@ class DashboardService:
                     title=row.title,
                     difficulty=row.difficulty,
                     stage=row.stage,
+
                     total_levels=total_levels,
+
                     completed_levels=completed_levels,
+
                     progress_percentage=round(
                         percentage,
                         2,
                     ),
                 )
             )
-
-        # ----------------------------------------------------
-        # Continue learning
-        # ----------------------------------------------------
-
-        continue_course = None
-
-        for course in courses:
-
-            if (
-                course.completed_levels
-                < course.total_levels
-            ):
-                continue_course = course
-                break
-
-        # If everything is completed,
-        # show the first course.
-
-        if (
-            continue_course is None
-            and courses
-        ):
-            continue_course = courses[0]
 
         # ----------------------------------------------------
         # Completed courses
@@ -201,18 +188,23 @@ class DashboardService:
             )
         )
 
+        # ----------------------------------------------------
+        # Student dashboard response
+        # ----------------------------------------------------
+
         return StudentDashboardResponse(
             name=user.name,
 
             xp=user.xp or 0,
+
             streak=user.streak or 0,
 
-            continue_course=continue_course,
+            # ALL ENROLLED COURSES
+            continue_courses=courses,
 
-            # These two are returned as empty until
-            # dedicated achievement/certificate models
-            # are available.
             achievements=[],
+
             recently_completed=recently_completed,
+
             certificates=[],
         )

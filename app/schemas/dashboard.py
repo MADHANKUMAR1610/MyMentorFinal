@@ -52,7 +52,8 @@ class StudentDashboardResponse(BaseModel):
     xp: int
     streak: int
 
-    continue_course: StudentCourseDashboardItem | None = None
+    # ALL COURSES ENROLLED BY THE STUDENT
+    continue_courses: list[StudentCourseDashboardItem]
 
     achievements: list[str]
     recently_completed: list[str]
