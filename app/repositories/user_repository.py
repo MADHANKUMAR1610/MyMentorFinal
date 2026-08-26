@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.user import User
 from app.models.progress import Progress
+from app.models.course_enrollment import CourseEnrollment
 from app.repositories.base import BaseRepository
 
 
@@ -66,27 +67,63 @@ class UserRepository(BaseRepository[User]):
         result = await self.session.execute(
             select(
                 User,
+
+            # ---------------------------------------------
+            # COMPLETED LEVELS
+            # ---------------------------------------------
                 func.count(
-                    func.distinct(Progress.level_id)
+                    func.distinct(
+                        Progress.level_id
+                    )
                 )
                 .filter(
                     Progress.completed.is_(True)
                 )
-                .label("completed_levels"),
+                .label(
+                    "completed_levels"
+                ),
+
+            # ---------------------------------------------
+            # ENROLLED COURSES
+            # ---------------------------------------------
+                func.count(
+                    func.distinct(
+                        CourseEnrollment.course_id
+                    )
+                )
+                .label(
+                    "enrolled_courses"
+                ),
             )
+
+        # ---------------------------------------------
+        # PROGRESS
+        # ---------------------------------------------
             .outerjoin(
                 Progress,
                 Progress.user_id == User.id,
             )
+
+        # ---------------------------------------------
+        # COURSE ENROLLMENTS
+        # ---------------------------------------------
+            .outerjoin(
+                CourseEnrollment,
+                CourseEnrollment.user_id == User.id,
+            )
+
             .where(
                 User.role == "student"
             )
+
             .group_by(
                 User.id
             )
+
             .order_by(
                 User.created_at.desc()
             )
+
             .offset(skip)
             .limit(limit)
         )
