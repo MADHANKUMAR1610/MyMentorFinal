@@ -75,15 +75,15 @@ class DashboardService:
         )
 
         recently_active_students = [
-            RecentlyActiveStudent(
-                name=row.name,
-                email=row.email,
-                xp=row.xp or 0,
-                streak=row.streak or 0,
-                levels=row.levels or 0,
-            )
-            for row in student_rows
-        ]
+    RecentlyActiveStudent(
+        name=row["name"],
+        email=row["email"],
+        xp=row["xp"],
+        streak=row["streak"],
+        levels=row["levels"],
+    )
+    for row in student_rows
+]
 
         return AdminDashboardResponse(
             total_students=total_students,
@@ -105,7 +105,7 @@ class DashboardService:
             ),
         )
 
-    # ========================================================
+        # ========================================================
     # STUDENT DASHBOARD
     # ========================================================
 
@@ -148,7 +148,7 @@ class DashboardService:
             )
 
             # ------------------------------------------------
-            # Calculate real-time progress
+            # Real-time progress percentage
             # ------------------------------------------------
 
             if total_levels > 0:
@@ -178,6 +178,17 @@ class DashboardService:
             )
 
         # ----------------------------------------------------
+        # Calculate REAL-TIME student streak
+        # from Progress.updated_at
+        # ----------------------------------------------------
+
+        streak = (
+            await self.repository.get_student_streak(
+                user_id
+            )
+        )
+
+        # ----------------------------------------------------
         # Completed courses
         # ----------------------------------------------------
 
@@ -197,7 +208,10 @@ class DashboardService:
 
             xp=user.xp or 0,
 
-            streak=user.streak or 0,
+            # IMPORTANT:
+            # Do NOT use user.streak here.
+            # This is calculated from Progress.
+            streak=streak,
 
             # ALL ENROLLED COURSES
             continue_courses=courses,

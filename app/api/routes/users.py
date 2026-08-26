@@ -113,36 +113,46 @@ async def get_all_students(
     ),
 ):
     """
-    Get all students for the admin students page.
+    Get all students with their
+    current XP, calculated streak,
+    and completed levels.
     """
 
-    result = await session.execute(
-        select(User)
-        .where(
-            User.role == "student"
-        )
-        .order_by(
-            User.created_at.desc()
-        )
-        .offset(skip)
-        .limit(limit)
+    service = UserService(session)
+
+    rows = await service.get_students_with_progress(
+        skip=skip,
+        limit=limit,
     )
 
-    students = result.scalars().all()
+    students = []
 
-    return [
-        {
-            "id": student.id,
-            "name": student.name,
-            "email": student.email,
-            "xp": 0,
-            "streak": 0,
-            "levels": 0,
-        }
-        for student in students
-    ]
+    for student, completed_levels in rows:
 
+        # Calculate real-time streak
+        # from Progress.updated_at
+        streak = await service.get_student_streak(
+            student.id
+        )
 
+        students.append(
+            {
+                "id": student.id,
+                "name": student.name,
+                "email": student.email,
+
+                # Real XP from User table
+                "xp": student.xp or 0,
+
+                # Calculated from Progress.updated_at
+                "streak": streak,
+
+                # Calculated from Progress.completed
+                "levels": completed_levels or 0,
+            }
+        )
+
+    return students
 # ============================================================
 # GET USER BY ID
 # ============================================================

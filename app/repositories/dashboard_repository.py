@@ -177,7 +177,7 @@ class DashboardRepository:
                 User.name,
                 User.email,
                 User.xp,
-                User.streak,
+
                 func.count(
                     func.distinct(
                         Progress.level_id
@@ -200,7 +200,6 @@ class DashboardRepository:
                 User.name,
                 User.email,
                 User.xp,
-                User.streak,
             )
             .order_by(
                 User.updated_at.desc()
@@ -208,7 +207,28 @@ class DashboardRepository:
             .limit(limit)
         )
 
-        return result.all()
+        rows = result.all()
+
+        students = []
+
+        for row in rows:
+
+            streak = await self.get_student_streak(
+                row.id
+            )
+
+            students.append(
+                {
+                    "id": row.id,
+                    "name": row.name,
+                    "email": row.email,
+                    "xp": row.xp or 0,
+                    "streak": streak,
+                    "levels": row.levels or 0,
+                }
+            )
+
+        return students
 
     # ========================================================
     # STUDENT DASHBOARD
@@ -343,3 +363,81 @@ class DashboardRepository:
             row[0]
             for row in result.all()
         ]
+        # ========================================================
+    # STUDENT STREAK
+    # ========================================================
+
+    async def get_student_streak(
+        self,
+        user_id,
+    ) -> int:
+        """
+        Calculate current learning streak from Progress activity.
+
+        A day counts when the student has progress activity
+        on that date.
+        """
+
+        result = await self.session.execute(
+            select(
+                func.date(
+                    Progress.updated_at
+                ).label("activity_date")
+            )
+            .where(
+                Progress.user_id == user_id
+            )
+            .group_by(
+                func.date(
+                    Progress.updated_at
+                )
+            )
+            .order_by(
+                func.date(
+                    Progress.updated_at
+                ).desc()
+            )
+        )
+
+        activity_dates = [
+            row.activity_date
+            for row in result.all()
+        ]
+
+        if not activity_dates:
+            return 0
+
+        today = datetime.now(
+            timezone.utc
+        ).date()
+
+        latest_date = activity_dates[0]
+
+        # Activity today
+        if latest_date == today:
+            expected_date = today
+
+        # No activity today, but activity yesterday
+        elif latest_date == today - timedelta(days=1):
+            expected_date = today - timedelta(days=1)
+
+        # Streak has expired
+        else:
+            return 0
+
+        streak = 0
+
+        for activity_date in activity_dates:
+
+            if activity_date == expected_date:
+
+                streak += 1
+
+                expected_date -= timedelta(
+                    days=1
+                )
+
+            elif activity_date < expected_date:
+                break
+
+        return streak
