@@ -91,6 +91,9 @@ async def update_my_profile(
 # ============================================================
 # GET ALL STUDENTS
 # ============================================================
+# ============================================================
+# GET ALL STUDENTS
+# ============================================================
 
 @router.get(
     "/students",
@@ -113,9 +116,12 @@ async def get_all_students(
     ),
 ):
     """
-    Get all students with their
-    current XP, calculated streak,
-    and completed levels.
+    Get all students with their:
+
+    - current XP
+    - calculated streak
+    - completed levels
+    - enrolled course count
     """
 
     service = UserService(session)
@@ -127,10 +133,17 @@ async def get_all_students(
 
     students = []
 
-    for student, completed_levels in rows:
+    for (
+        student,
+        completed_levels,
+        enrolled_courses,
+    ) in rows:
 
+        # ----------------------------------------------------
         # Calculate real-time streak
         # from Progress.updated_at
+        # ----------------------------------------------------
+
         streak = await service.get_student_streak(
             student.id
         )
@@ -141,14 +154,25 @@ async def get_all_students(
                 "name": student.name,
                 "email": student.email,
 
-                # Real XP from User table
+                # --------------------------------------------
+                # XP
+                # --------------------------------------------
                 "xp": student.xp or 0,
 
-                # Calculated from Progress.updated_at
+                # --------------------------------------------
+                # REAL-TIME STREAK
+                # --------------------------------------------
                 "streak": streak,
 
-                # Calculated from Progress.completed
+                # --------------------------------------------
+                # COMPLETED LEVELS
+                # --------------------------------------------
                 "levels": completed_levels or 0,
+
+                # --------------------------------------------
+                # ENROLLED COURSES
+                # --------------------------------------------
+                "courses": enrolled_courses or 0,
             }
         )
 
