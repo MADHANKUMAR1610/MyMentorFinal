@@ -34,6 +34,7 @@ from app.api.routes.course_journey import (
 from app.api.routes.career_calendar import (
     router as career_calendar_router,
 )
+from app.api.routes.work_experience import router as work_experience_router
 from app.api.routes.code_execution import (
     router as code_execution_router,
 )
@@ -56,6 +57,7 @@ api_router.include_router(files_router)
 api_router.include_router(profiles_router)
 api_router.include_router(career_personas_router)
 api_router.include_router(mentors_router)
+api_router.include_router(work_experience_router)
 api_router.include_router(
     mentor_applications_router
 )

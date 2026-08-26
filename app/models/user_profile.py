@@ -93,6 +93,17 @@ class UserProfile(
         nullable=True,
     )
 
+        # =========================================================
+    # WORK EXPERIENCES
+    # =========================================================
+
+    work_experiences = relationship(
+        "WorkExperience",
+        back_populates="user_profile",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+    )
+
     # =========================================================
     # USER RELATIONSHIP
     # =========================================================

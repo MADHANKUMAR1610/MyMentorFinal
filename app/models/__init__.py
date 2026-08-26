@@ -3,6 +3,7 @@ from app.models.user_profile import UserProfile
 from app.models.career_persona import CareerPersona
 from app.models.mentor import Mentor
 from app.models.mentor_application import MentorApplication
+from app.models.work_experience import WorkExperience
 from app.models.booking import Booking
 from app.models.company import Company
 from app.models.company_application import CompanyApplication
