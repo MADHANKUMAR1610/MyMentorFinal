@@ -1,9 +1,13 @@
 from uuid import UUID
 
+from app.models.user import User
+from app.models.user_profile import UserProfile
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.user_profile import UserProfile
-from app.repositories.user_profile_repository import UserProfileRepository
+from app.repositories.user_profile_repository import (
+    UserProfileRepository,
+)
 
 
 class UserProfileService:
@@ -11,19 +15,35 @@ class UserProfileService:
     def __init__(self, session: AsyncSession):
         self.repository = UserProfileRepository(session)
 
+    # ========================================================
+    # GET BY ID
+    # ========================================================
+
     async def get_by_id(
         self,
         profile_id: UUID,
     ) -> UserProfile | None:
 
-        return await self.repository.get_by_id(profile_id)
+        return await self.repository.get_by_id(
+            profile_id
+        )
+
+    # ========================================================
+    # GET BY USER ID
+    # ========================================================
 
     async def get_by_user_id(
         self,
         user_id: UUID,
     ) -> UserProfile | None:
 
-        return await self.repository.get_by_user_id(user_id)
+        return await self.repository.get_by_user_id(
+            user_id
+        )
+
+    # ========================================================
+    # GET BY PROFILE CATEGORY
+    # ========================================================
 
     async def get_by_profile_category(
         self,
@@ -34,26 +54,89 @@ class UserProfileService:
             profile_category
         )
 
+    # ========================================================
+    # CREATE PROFILE
+    # ========================================================
+
     async def create_profile(
         self,
         profile: UserProfile,
     ) -> UserProfile:
 
-        return await self.repository.create(profile)
+        return await self.repository.create(
+            profile
+        )
+
+    # ========================================================
+    # UPDATE PROFILE
+    # ========================================================
 
     async def update_profile(
         self,
         profile: UserProfile,
     ) -> UserProfile:
 
-        return await self.repository.update(profile)
+        return await self.repository.update(
+            profile
+        )
+
+    # ========================================================
+    # DELETE PROFILE
+    # ========================================================
 
     async def delete_profile(
         self,
         profile: UserProfile,
     ) -> None:
 
-        await self.repository.delete(profile)
+        await self.repository.delete(
+            profile
+        )
+
+    # ========================================================
+    # PROFILE RESPONSE
+    # ========================================================
+
+    def build_profile_response(
+        self,
+        profile: UserProfile,
+    ) -> dict:
+
+        profile_photo_url = None
+
+        if (
+            profile.profile_photo_file is not None
+            and not profile.profile_photo_file.is_deleted
+        ):
+            profile_photo_url = (
+                profile.profile_photo_file.public_url
+            )
+
+        return {
+            "id": profile.id,
+            "user_id": profile.user_id,
+
+            "dob": profile.dob,
+            "age": profile.age,
+
+            "profile_category": profile.profile_category,
+            "education": profile.education,
+            "class_year": profile.class_year,
+            "institution": profile.institution,
+
+            "career_goal": profile.career_goal,
+            "career_interests": profile.career_interests,
+
+            "profile_photo_file_id": (
+                profile.profile_photo_file_id
+            ),
+
+            "profile_photo_url": profile_photo_url,
+
+            "created_at": profile.created_at,
+            "updated_at": profile.updated_at,
+        }
+
     # ========================================================
     # PROFILE SUMMARY
     # ========================================================
@@ -80,16 +163,11 @@ class UserProfileService:
             )
         )
 
-        # ----------------------------------------------------
-        # SCORE CALCULATION
-        # ----------------------------------------------------
-
         career_clarity = 0
 
         if profile and profile.career_goal:
             career_clarity = 20
 
-        # Learning Progress = 40 points
         if total_levels > 0:
             learning_progress = round(
                 (completed_levels / total_levels) * 40
@@ -97,7 +175,6 @@ class UserProfileService:
         else:
             learning_progress = 0
 
-        # Profile Completeness = 20 points
         profile_completeness = 0
 
         if profile:
@@ -127,14 +204,16 @@ class UserProfileService:
                 * 20
             )
 
-        # Consistency = 10 points
         consistency = min(
             max(user.streak, 0),
             10,
         )
 
-        # Job Readiness = 10 points
-        job_readiness = 10 if applications > 0 else 0
+        job_readiness = (
+            10
+            if applications > 0
+            else 0
+        )
 
         total_score = (
             career_clarity
@@ -144,21 +223,27 @@ class UserProfileService:
             + job_readiness
         )
 
-        badge = self._get_badge(total_score)
+        badge = self._get_badge(
+            total_score
+        )
 
         return {
             "score": total_score,
             "badge": badge,
             "name": user.name,
+
             "career_goal": (
                 profile.career_goal
                 if profile
                 else None
             ),
+
             "xp": user.xp,
             "day_streak": user.streak,
+
             "completed_levels": completed_levels,
             "total_levels": total_levels,
+
             "applications": applications,
         }
 
@@ -188,18 +273,10 @@ class UserProfileService:
             )
         )
 
-        # ----------------------------------------------------
-        # Career Clarity - 20
-        # ----------------------------------------------------
-
         career_clarity = 0
 
         if profile and profile.career_goal:
             career_clarity = 20
-
-        # ----------------------------------------------------
-        # Learning Progress - 40
-        # ----------------------------------------------------
 
         if total_levels > 0:
             learning_progress = round(
@@ -207,10 +284,6 @@ class UserProfileService:
             )
         else:
             learning_progress = 0
-
-        # ----------------------------------------------------
-        # Profile Completeness - 20
-        # ----------------------------------------------------
 
         profile_completeness = 0
 
@@ -241,20 +314,16 @@ class UserProfileService:
                 * 20
             )
 
-        # ----------------------------------------------------
-        # Consistency - 10
-        # ----------------------------------------------------
-
         consistency = min(
             max(user.streak, 0),
             10,
         )
 
-        # ----------------------------------------------------
-        # Job Readiness - 10
-        # ----------------------------------------------------
-
-        job_readiness = 10 if applications > 0 else 0
+        job_readiness = (
+            10
+            if applications > 0
+            else 0
+        )
 
         total_score = (
             career_clarity
@@ -289,7 +358,9 @@ class UserProfileService:
     # ========================================================
 
     @staticmethod
-    def _get_badge(score: int) -> str:
+    def _get_badge(
+        score: int,
+    ) -> str:
 
         if score >= 80:
             return "Career Champion"

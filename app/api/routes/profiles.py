@@ -1,12 +1,16 @@
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import get_current_user
 from app.database.database import get_db
+
+from app.models.file import File
 from app.models.user import User
 from app.models.user_profile import UserProfile
+
 from app.schemas.user_profile import (
     UserProfileCreate,
     UserProfileResponse,
@@ -14,6 +18,7 @@ from app.schemas.user_profile import (
     ProfileSummaryResponse,
     ScoreBreakdownResponse,
 )
+
 from app.services.user_profile_service import UserProfileService
 
 
@@ -21,6 +26,7 @@ router = APIRouter(
     prefix="/profiles",
     tags=["User Profiles"],
 )
+
 
 # ============================================================
 # GET MY PROFILE SUMMARY
@@ -78,6 +84,8 @@ async def get_my_score_breakdown(
         user=current_user,
         profile=profile,
     )
+
+
 # ============================================================
 # GET MY PROFILE
 # ============================================================
@@ -91,12 +99,19 @@ async def get_my_profile(
     session: AsyncSession = Depends(get_db),
 ):
     """
-    Get the currently authenticated user's profile.
+    Get the currently authenticated user's profile
+    including profile photo URL.
     """
 
     service = UserProfileService(session)
 
-    profile = await service.get_by_user_id(current_user.id)
+    # ---------------------------------------------------------
+    # Get user profile
+    # ---------------------------------------------------------
+
+    profile = await service.get_by_user_id(
+        current_user.id
+    )
 
     if profile is None:
         raise HTTPException(
@@ -104,7 +119,49 @@ async def get_my_profile(
             detail="User profile not found.",
         )
 
-    return UserProfileResponse.model_validate(profile)
+    # ---------------------------------------------------------
+    # Get profile photo URL
+    # ---------------------------------------------------------
+
+    profile_photo_url = None
+
+    if profile.profile_photo_file_id is not None:
+
+        result = await session.execute(
+            select(File).where(
+                File.id == profile.profile_photo_file_id,
+                File.is_deleted.is_(False),
+            )
+        )
+
+        profile_photo = result.scalar_one_or_none()
+
+        if profile_photo is not None:
+            profile_photo_url = profile_photo.public_url
+
+    # ---------------------------------------------------------
+    # Return profile
+    # ---------------------------------------------------------
+
+    return UserProfileResponse(
+        id=profile.id,
+        user_id=profile.user_id,
+
+        dob=profile.dob,
+        age=profile.age,
+        profile_category=profile.profile_category,
+        education=profile.education,
+        class_year=profile.class_year,
+        institution=profile.institution,
+        career_goal=profile.career_goal,
+        career_interests=profile.career_interests,
+
+        profile_photo_file_id=profile.profile_photo_file_id,
+        profile_photo_url=profile_photo_url,
+
+        created_at=profile.created_at,
+        updated_at=profile.updated_at,
+    )
 
 
 # ============================================================
@@ -149,7 +206,9 @@ async def create_my_profile(
         career_interests=data.career_interests,
     )
 
-    created_profile = await service.create_profile(profile)
+    created_profile = await service.create_profile(
+        profile
+    )
 
     return UserProfileResponse.model_validate(
         created_profile
@@ -171,6 +230,8 @@ async def update_my_profile(
 ):
     """
     Update the currently authenticated user's profile.
+
+    This endpoint also supports updating the profile photo.
     """
 
     service = UserProfileService(session)
@@ -184,6 +245,10 @@ async def update_my_profile(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="User profile not found.",
         )
+
+    # ========================================================
+    # NORMAL PROFILE FIELDS
+    # ========================================================
 
     if data.dob is not None:
         profile.dob = data.dob
@@ -209,7 +274,60 @@ async def update_my_profile(
     if data.career_interests is not None:
         profile.career_interests = data.career_interests
 
-    updated_profile = await service.update_profile(profile)
+    # ========================================================
+    # PROFILE PHOTO
+    # ========================================================
+
+    if data.profile_photo_file_id is not None:
+
+        result = await session.execute(
+            select(File).where(
+                File.id == data.profile_photo_file_id,
+                File.uploaded_by == current_user.id,
+                File.is_deleted.is_(False),
+            )
+        )
+
+        file = result.scalar_one_or_none()
+
+        if file is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Profile photo file not found.",
+            )
+
+        # ----------------------------------------------------
+        # Only images
+        # ----------------------------------------------------
+
+        allowed_content_types = {
+            "image/jpeg",
+            "image/png",
+            "image/webp",
+        }
+
+        if file.content_type not in allowed_content_types:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    "Only JPG, PNG, and WEBP images "
+                    "can be used as a profile photo."
+                ),
+            )
+
+        # ----------------------------------------------------
+        # Save profile photo file ID
+        # ----------------------------------------------------
+
+        profile.profile_photo_file_id = file.id
+
+    # ========================================================
+    # SAVE PROFILE
+    # ========================================================
+
+    updated_profile = await service.update_profile(
+        profile
+    )
 
     return UserProfileResponse.model_validate(
         updated_profile
@@ -247,6 +365,8 @@ async def delete_my_profile(
     await service.delete_profile(profile)
 
     return None
+
+
 # ============================================================
 # GET PROFILE BY ID
 # ============================================================
@@ -266,7 +386,9 @@ async def get_profile_by_id(
 
     service = UserProfileService(session)
 
-    profile = await service.get_by_id(profile_id)
+    profile = await service.get_by_id(
+        profile_id
+    )
 
     if profile is None:
         raise HTTPException(
@@ -274,4 +396,46 @@ async def get_profile_by_id(
             detail="User profile not found.",
         )
 
-    return UserProfileResponse.model_validate(profile)
+    # ---------------------------------------------------------
+    # Get profile photo URL
+    # ---------------------------------------------------------
+
+    profile_photo_url = None
+
+    if profile.profile_photo_file_id is not None:
+
+        result = await session.execute(
+            select(File).where(
+                File.id == profile.profile_photo_file_id,
+                File.is_deleted.is_(False),
+            )
+        )
+
+        profile_photo = result.scalar_one_or_none()
+
+        if profile_photo is not None:
+            profile_photo_url = profile_photo.public_url
+
+    # ---------------------------------------------------------
+    # Return profile
+    # ---------------------------------------------------------
+
+    return UserProfileResponse(
+        id=profile.id,
+        user_id=profile.user_id,
+
+        dob=profile.dob,
+        age=profile.age,
+        profile_category=profile.profile_category,
+        education=profile.education,
+        class_year=profile.class_year,
+        institution=profile.institution,
+        career_goal=profile.career_goal,
+        career_interests=profile.career_interests,
+
+        profile_photo_file_id=profile.profile_photo_file_id,
+        profile_photo_url=profile_photo_url,
+
+        created_at=profile.created_at,
+        updated_at=profile.updated_at,
+    )
