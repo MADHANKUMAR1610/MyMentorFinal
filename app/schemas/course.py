@@ -94,3 +94,4 @@ class CourseResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     level_count: int = 0
+    enrollment_count: int = 0

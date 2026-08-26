@@ -120,12 +120,16 @@ async def get_courses(
 
     return [
     CourseResponse(
-        **{
-            **CourseResponse.model_validate(course).model_dump(),
-            "level_count": level_count,
-        }
+        **CourseResponse.model_validate(course).model_dump(
+            exclude={
+                "level_count",
+                "enrollment_count",
+            }
+        ),
+        level_count=level_count,
+        enrollment_count=enrollment_count,
     )
-    for course, level_count in rows
+    for course, level_count, enrollment_count in rows
 ]
 # =====================================================
 # GET MY ENROLLMENTS

@@ -248,26 +248,35 @@ class CourseRepository(BaseRepository[Course]):
         difficulty: str | None = None,
         skip: int = 0,
         limit: int = 100,
-    ) -> list[tuple[Course, int]]:
+    ) -> list[tuple[Course, int, int]]:
 
         query = (
             select(
                 Course,
-                func.count(Level.id).label("level_count"),
+
+                func.count(
+                    func.distinct(Level.id)
+                ).label("level_count"),
+
+                func.count(
+                    func.distinct(
+                        CourseEnrollment.user_id
+                    )
+                ).label("enrollment_count"),
             )
             .outerjoin(
                 Level,
                 Level.course_id == Course.id,
+            )
+            .outerjoin(
+                CourseEnrollment,
+                CourseEnrollment.course_id == Course.id,
             )
         )
 
         if course_status is not None:
             query = query.where(
                 Course.status == course_status
-            )
-        else:
-            query = query.where(
-                Course.status == "published"
             )
 
         if language is not None:
@@ -283,7 +292,9 @@ class CourseRepository(BaseRepository[Course]):
         query = (
             query
             .group_by(Course.id)
-            .order_by(Course.created_at.desc())
+            .order_by(
+                Course.created_at.desc()
+            )
             .offset(skip)
             .limit(limit)
         )

@@ -108,7 +108,7 @@ class CourseService:
         difficulty: str | None = None,
         skip: int = 0,
         limit: int = 100,
-    ) -> list[tuple[Course, int]]:
+    ) -> list[tuple[Course, int, int]]:
 
         return await self.repository.get_courses_with_level_count(
             course_status=course_status,
@@ -116,4 +116,13 @@ class CourseService:
             difficulty=difficulty,
             skip=skip,
             limit=limit,
+        )
+
+    async def get_course_with_counts(
+        self,
+        course_id: UUID,
+    ) -> tuple[Course, int, int] | None:
+
+        return await self.repository.get_course_with_counts(
+            course_id
         )
