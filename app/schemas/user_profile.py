@@ -4,6 +4,10 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field
 
 
+# ============================================================
+# CREATE USER PROFILE
+# ============================================================
+
 class UserProfileCreate(BaseModel):
     """
     Create a user profile.
@@ -44,6 +48,16 @@ class UserProfileCreate(BaseModel):
 
     career_interests: str | None = None
 
+    # --------------------------------------------------------
+    # PROFILE PHOTO
+    # --------------------------------------------------------
+
+    profile_photo_file_id: UUID | None = None
+
+
+# ============================================================
+# UPDATE USER PROFILE
+# ============================================================
 
 class UserProfileUpdate(BaseModel):
     """
@@ -85,6 +99,16 @@ class UserProfileUpdate(BaseModel):
 
     career_interests: str | None = None
 
+    # --------------------------------------------------------
+    # PROFILE PHOTO
+    # --------------------------------------------------------
+
+    profile_photo_file_id: UUID | None = None
+
+
+# ============================================================
+# USER PROFILE RESPONSE
+# ============================================================
 
 class UserProfileResponse(BaseModel):
     """
@@ -97,6 +121,7 @@ class UserProfileResponse(BaseModel):
 
     id: UUID
     user_id: UUID
+
     dob: date | None
     age: int | None
     profile_category: str | None
@@ -105,23 +130,28 @@ class UserProfileResponse(BaseModel):
     institution: str | None
     career_goal: str | None
     career_interests: str | None
+
+    # Profile photo
+    profile_photo_file_id: UUID | None = None
+    profile_photo_url: str | None = None
+
     created_at: datetime
     updated_at: datetime
-# ============================================================
-# PROFILE SUMMARY
-# ============================================================
-
 class ProfileSummaryResponse(BaseModel):
     score: int
+
     badge: str
 
     name: str
+
     career_goal: str | None = None
 
     xp: int
+
     day_streak: int
 
     completed_levels: int
+
     total_levels: int
 
     applications: int
@@ -133,19 +163,25 @@ class ProfileSummaryResponse(BaseModel):
 
 class ScoreBreakdownResponse(BaseModel):
     total_score: int
+
     max_score: int
 
     career_clarity: int
+
     career_clarity_max: int
 
     learning_progress: int
+
     learning_progress_max: int
 
     profile_completeness: int
+
     profile_completeness_max: int
 
     consistency: int
+
     consistency_max: int
 
     job_readiness: int
+
     job_readiness_max: int

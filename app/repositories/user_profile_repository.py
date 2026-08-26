@@ -1,12 +1,14 @@
 from typing import Optional
 from uuid import UUID
 
-from sqlalchemy import func,select
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload
+
+from app.models.file import File
 from app.models.progress import Progress
 from app.models.level import Level
 from app.models.job_application import JobApplication
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from app.models.user_profile import UserProfile
 from app.repositories.base import BaseRepository
 
@@ -21,17 +23,55 @@ class UserProfileRepository(BaseRepository[UserProfile]):
     def __init__(self, session: AsyncSession):
         super().__init__(UserProfile, session)
 
+    # ========================================================
+    # GET BY USER ID
+    # ========================================================
+
     async def get_by_user_id(
         self,
         user_id: UUID,
     ) -> Optional[UserProfile]:
+
         result = await self.session.execute(
-            select(UserProfile).where(
+            select(UserProfile)
+            .options(
+                joinedload(
+                    UserProfile.profile_photo
+                )
+            )
+            .where(
                 UserProfile.user_id == user_id
             )
         )
 
         return result.scalar_one_or_none()
+
+    # ========================================================
+    # GET BY PROFILE ID
+    # ========================================================
+
+    async def get_by_id(
+        self,
+        profile_id: UUID,
+    ) -> Optional[UserProfile]:
+
+        result = await self.session.execute(
+            select(UserProfile)
+            .options(
+                joinedload(
+                    UserProfile.profile_photo
+                )
+            )
+            .where(
+                UserProfile.id == profile_id
+            )
+        )
+
+        return result.scalar_one_or_none()
+
+    # ========================================================
+    # GET BY CAREER GOAL
+    # ========================================================
 
     async def get_by_career_goal(
         self,
@@ -40,8 +80,14 @@ class UserProfileRepository(BaseRepository[UserProfile]):
         skip: int = 0,
         limit: int = 100,
     ) -> list[UserProfile]:
+
         result = await self.session.execute(
             select(UserProfile)
+            .options(
+                joinedload(
+                    UserProfile.profile_photo
+                )
+            )
             .where(
                 UserProfile.career_goal == career_goal
             )
@@ -49,7 +95,13 @@ class UserProfileRepository(BaseRepository[UserProfile]):
             .limit(limit)
         )
 
-        return list(result.scalars().all())
+        return list(
+            result.scalars().unique().all()
+        )
+
+    # ========================================================
+    # GET BY PROFILE CATEGORY
+    # ========================================================
 
     async def get_by_profile_category(
         self,
@@ -58,17 +110,27 @@ class UserProfileRepository(BaseRepository[UserProfile]):
         skip: int = 0,
         limit: int = 100,
     ) -> list[UserProfile]:
+
         result = await self.session.execute(
             select(UserProfile)
+            .options(
+                joinedload(
+                    UserProfile.profile_photo
+                )
+            )
             .where(
-                UserProfile.profile_category == profile_category
+                UserProfile.profile_category
+                == profile_category
             )
             .offset(skip)
             .limit(limit)
         )
 
-        return list(result.scalars().all())
-# ========================================================
+        return list(
+            result.scalars().unique().all()
+        )
+
+    # ========================================================
     # PROFILE SUMMARY / SCORE
     # ========================================================
 
@@ -87,13 +149,23 @@ class UserProfileRepository(BaseRepository[UserProfile]):
 
         return result.scalar_one()
 
-    async def get_total_levels_count(self) -> int:
+    # ========================================================
+    # TOTAL LEVELS
+    # ========================================================
+
+    async def get_total_levels_count(
+        self,
+    ) -> int:
 
         result = await self.session.execute(
             select(func.count(Level.id))
         )
 
         return result.scalar_one()
+
+    # ========================================================
+    # USER APPLICATIONS
+    # ========================================================
 
     async def get_user_applications_count(
         self,
@@ -103,7 +175,8 @@ class UserProfileRepository(BaseRepository[UserProfile]):
         result = await self.session.execute(
             select(func.count(JobApplication.id))
             .where(
-                JobApplication.applicant_user_id == user_id
+                JobApplication.applicant_user_id
+                == user_id
             )
         )
 

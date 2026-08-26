@@ -16,6 +16,10 @@ class UserProfile(
 ):
     __tablename__ = "user_profiles"
 
+    # =========================================================
+    # USER
+    # =========================================================
+
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("users.id", ondelete="CASCADE"),
@@ -23,6 +27,31 @@ class UserProfile(
         nullable=False,
         index=True,
     )
+
+    # =========================================================
+    # PROFILE PHOTO
+    # =========================================================
+
+    profile_photo_file_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("files.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+
+    # =========================================================
+    # PROFILE PHOTO RELATIONSHIP
+    # =========================================================
+
+    profile_photo = relationship(
+        "File",
+        foreign_keys=[profile_photo_file_id],
+        lazy="joined",
+    )
+
+    # =========================================================
+    # BASIC PROFILE
+    # =========================================================
 
     dob: Mapped[date | None] = mapped_column(
         Date,
@@ -63,6 +92,10 @@ class UserProfile(
         Text,
         nullable=True,
     )
+
+    # =========================================================
+    # USER RELATIONSHIP
+    # =========================================================
 
     user = relationship(
         "User",
