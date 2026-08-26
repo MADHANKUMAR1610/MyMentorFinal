@@ -6,10 +6,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.course import Course
 from app.models.course_enrollment import CourseEnrollment
+from app.models.level import Level
 from app.repositories.base import BaseRepository
 
-
-from app.models.level import Level
 
 class CourseRepository(BaseRepository[Course]):
     """
@@ -125,6 +124,62 @@ class CourseRepository(BaseRepository[Course]):
     # GET BY DIFFICULTY
     # =========================================================
 
+    async def get_by_difficulty(
+        self,
+        difficulty: str,
+        *,
+        skip: int = 0,
+        limit: int = 100,
+    ) -> list[Course]:
+
+        result = await self.session.execute(
+            select(Course)
+            .where(
+                Course.difficulty == difficulty
+            )
+            .order_by(
+                Course.created_at.desc()
+            )
+            .offset(skip)
+            .limit(limit)
+        )
+
+        return list(
+            result.scalars().all()
+        )
+
+    # =========================================================
+    # GET BY CATEGORY
+    # =========================================================
+
+    async def get_by_category(
+        self,
+        category: str,
+        *,
+        skip: int = 0,
+        limit: int = 100,
+    ) -> list[Course]:
+
+        result = await self.session.execute(
+            select(Course)
+            .where(
+                Course.category == category
+            )
+            .order_by(
+                Course.created_at.desc()
+            )
+            .offset(skip)
+            .limit(limit)
+        )
+
+        return list(
+            result.scalars().all()
+        )
+
+    # =========================================================
+    # GET COURSES FOR CAREER GOAL
+    # =========================================================
+
     async def get_courses_for_career_goal(
         self,
         keywords: list[str],
@@ -142,6 +197,7 @@ class CourseRepository(BaseRepository[Course]):
         conditions = []
 
         for keyword in keywords:
+
             keyword = keyword.strip().lower()
 
             if not keyword:
@@ -154,6 +210,7 @@ class CourseRepository(BaseRepository[Course]):
                     Course.title.ilike(pattern),
                     Course.description.ilike(pattern),
                     Course.language.ilike(pattern),
+                    Course.category.ilike(pattern),
                 ]
             )
 
@@ -168,10 +225,12 @@ class CourseRepository(BaseRepository[Course]):
             .outerjoin(
                 CourseEnrollment,
                 (
-                    CourseEnrollment.course_id == Course.id
+                    CourseEnrollment.course_id
+                    == Course.id
                 )
                 & (
-                    CourseEnrollment.user_id == user_id
+                    CourseEnrollment.user_id
+                    == user_id
                 ),
             )
             .where(
@@ -184,7 +243,10 @@ class CourseRepository(BaseRepository[Course]):
             .limit(limit)
         )
 
-        return list(result.all())
+        return list(
+            result.all()
+        )
+
     # =========================================================
     # GENERIC COURSE SUGGESTIONS
     # =========================================================
@@ -217,6 +279,7 @@ class CourseRepository(BaseRepository[Course]):
                     Course.title.ilike(pattern),
                     Course.description.ilike(pattern),
                     Course.language.ilike(pattern),
+                    Course.category.ilike(pattern),
                 ]
             )
 
@@ -240,12 +303,17 @@ class CourseRepository(BaseRepository[Course]):
             result.scalars().all()
         )
 
+    # =========================================================
+    # GET COURSES WITH LEVEL + ENROLLMENT COUNT
+    # =========================================================
+
     async def get_courses_with_level_count(
         self,
         *,
         course_status: str | None = None,
         language: str | None = None,
         difficulty: str | None = None,
+        category: str | None = None,
         skip: int = 0,
         limit: int = 100,
     ) -> list[tuple[Course, int, int]]:
@@ -256,13 +324,17 @@ class CourseRepository(BaseRepository[Course]):
 
                 func.count(
                     func.distinct(Level.id)
-                ).label("level_count"),
+                ).label(
+                    "level_count"
+                ),
 
                 func.count(
                     func.distinct(
                         CourseEnrollment.user_id
                     )
-                ).label("enrollment_count"),
+                ).label(
+                    "enrollment_count"
+                ),
             )
             .outerjoin(
                 Level,
@@ -270,28 +342,60 @@ class CourseRepository(BaseRepository[Course]):
             )
             .outerjoin(
                 CourseEnrollment,
-                CourseEnrollment.course_id == Course.id,
+                CourseEnrollment.course_id
+                == Course.id,
             )
         )
 
+        # -----------------------------------------------------
+        # OPTIONAL STATUS FILTER
+        # -----------------------------------------------------
+
         if course_status is not None:
+
             query = query.where(
                 Course.status == course_status
             )
 
+        # -----------------------------------------------------
+        # OPTIONAL LANGUAGE FILTER
+        # -----------------------------------------------------
+
         if language is not None:
+
             query = query.where(
                 Course.language == language
             )
 
+        # -----------------------------------------------------
+        # OPTIONAL DIFFICULTY FILTER
+        # -----------------------------------------------------
+
         if difficulty is not None:
+
             query = query.where(
                 Course.difficulty == difficulty
             )
 
+        # -----------------------------------------------------
+        # OPTIONAL CATEGORY FILTER
+        # -----------------------------------------------------
+
+        if category is not None:
+
+            query = query.where(
+                Course.category == category
+            )
+
+        # -----------------------------------------------------
+        # GROUP + PAGINATION
+        # -----------------------------------------------------
+
         query = (
             query
-            .group_by(Course.id)
+            .group_by(
+                Course.id
+            )
             .order_by(
                 Course.created_at.desc()
             )
@@ -299,6 +403,10 @@ class CourseRepository(BaseRepository[Course]):
             .limit(limit)
         )
 
-        result = await self.session.execute(query)
+        result = await self.session.execute(
+            query
+        )
 
-        return list(result.all())
+        return list(
+            result.all()
+        )

@@ -11,19 +11,35 @@ class CourseService:
     def __init__(self, session: AsyncSession):
         self.repository = CourseRepository(session)
 
+    # =========================================================
+    # GET BY ID
+    # =========================================================
+
     async def get_by_id(
         self,
         course_id: UUID,
     ) -> Course | None:
 
-        return await self.repository.get_by_id(course_id)
+        return await self.repository.get_by_id(
+            course_id
+        )
+
+    # =========================================================
+    # GET BY TITLE
+    # =========================================================
 
     async def get_by_title(
         self,
         title: str,
     ) -> Course | None:
 
-        return await self.repository.get_by_title(title)
+        return await self.repository.get_by_title(
+            title
+        )
+
+    # =========================================================
+    # GET BY STATUS
+    # =========================================================
 
     async def get_by_status(
         self,
@@ -39,6 +55,10 @@ class CourseService:
             limit=limit,
         )
 
+    # =========================================================
+    # GET PUBLISHED
+    # =========================================================
+
     async def get_published(
         self,
         *,
@@ -50,6 +70,10 @@ class CourseService:
             skip=skip,
             limit=limit,
         )
+
+    # =========================================================
+    # GET BY LANGUAGE
+    # =========================================================
 
     async def get_by_language(
         self,
@@ -65,6 +89,10 @@ class CourseService:
             limit=limit,
         )
 
+    # =========================================================
+    # GET BY DIFFICULTY
+    # =========================================================
+
     async def get_by_difficulty(
         self,
         difficulty: str,
@@ -79,26 +107,66 @@ class CourseService:
             limit=limit,
         )
 
+    # =========================================================
+    # GET BY CATEGORY
+    # =========================================================
+
+    async def get_by_category(
+        self,
+        category: str,
+        *,
+        skip: int = 0,
+        limit: int = 100,
+    ) -> list[Course]:
+
+        return await self.repository.get_by_category(
+            category,
+            skip=skip,
+            limit=limit,
+        )
+
+    # =========================================================
+    # CREATE COURSE
+    # =========================================================
+
     async def create_course(
         self,
         course: Course,
     ) -> Course:
 
-        return await self.repository.create(course)
+        return await self.repository.create(
+            course
+        )
+
+    # =========================================================
+    # UPDATE COURSE
+    # =========================================================
 
     async def update_course(
         self,
         course: Course,
     ) -> Course:
 
-        return await self.repository.update(course)
+        return await self.repository.update(
+            course
+        )
+
+    # =========================================================
+    # DELETE COURSE
+    # =========================================================
 
     async def delete_course(
         self,
         course: Course,
     ) -> None:
 
-        await self.repository.delete(course)
+        await self.repository.delete(
+            course
+        )
+
+    # =========================================================
+    # GET COURSES WITH LEVEL + ENROLLMENT COUNT
+    # =========================================================
 
     async def get_courses_with_level_count(
         self,
@@ -106,6 +174,7 @@ class CourseService:
         course_status: str | None = None,
         language: str | None = None,
         difficulty: str | None = None,
+        category: str | None = None,
         skip: int = 0,
         limit: int = 100,
     ) -> list[tuple[Course, int, int]]:
@@ -114,9 +183,14 @@ class CourseService:
             course_status=course_status,
             language=language,
             difficulty=difficulty,
+            category=category,
             skip=skip,
             limit=limit,
         )
+
+    # =========================================================
+    # GET COURSE WITH COUNTS
+    # =========================================================
 
     async def get_course_with_counts(
         self,

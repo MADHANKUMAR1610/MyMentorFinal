@@ -1,16 +1,32 @@
 from datetime import datetime
 from uuid import UUID
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
 
+CourseCategory = Literal[
+    "Programming",
+    "Artificial Intelligence",
+    "Communication",
+    "Leadership",
+    "Interview Preparation",
+    "Cloud",
+    "Cyber Security",
+    "Data Science",
+]
+
+
 class CourseCreate(BaseModel):
+
     title: str = Field(
         min_length=2,
         max_length=200,
     )
 
     description: str | None = None
+
+    category: CourseCategory
 
     language: str = Field(
         default="Python",
@@ -41,6 +57,7 @@ class CourseCreate(BaseModel):
 
 
 class CourseUpdate(BaseModel):
+
     title: str | None = Field(
         default=None,
         min_length=2,
@@ -48,6 +65,8 @@ class CourseUpdate(BaseModel):
     )
 
     description: str | None = None
+
+    category: CourseCategory | None = None
 
     language: str | None = Field(
         default=None,
@@ -78,20 +97,35 @@ class CourseUpdate(BaseModel):
 
 
 class CourseResponse(BaseModel):
+
     model_config = ConfigDict(
         from_attributes=True,
     )
 
     id: UUID
+
     title: str
+
     description: str | None
+
+    category: CourseCategory
+
     language: str
+
     difficulty: str
+
     duration: str | None
+
     thumbnail: str | None
+
     status: str
+
     certificate_template: str | None
+
     created_at: datetime
+
     updated_at: datetime
+
     level_count: int = 0
+
     enrollment_count: int = 0

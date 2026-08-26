@@ -22,6 +22,13 @@ class Course(
         nullable=True,
     )
 
+    category: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+        default="Programming",
+        index=True,
+    )
+
     language: Mapped[str] = mapped_column(
         String(50),
         nullable=False,
