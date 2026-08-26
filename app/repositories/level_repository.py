@@ -134,3 +134,17 @@ class LevelRepository(BaseRepository[Level]):
         )
 
         return result.all()
+
+    async def count_by_course_id(
+        self,
+        course_id: UUID,
+    ) -> int:
+
+        result = await self.session.execute(
+            select(func.count(Level.id))
+            .where(
+                Level.course_id == course_id
+            )
+        )
+
+        return result.scalar_one()

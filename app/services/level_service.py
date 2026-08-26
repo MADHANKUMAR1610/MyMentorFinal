@@ -266,3 +266,11 @@ class LevelService:
             "xp_earned": level.xp,
             "message": "Level completed successfully",
         }
+
+    async def count_by_course_id(
+        self,
+        course_id: UUID,
+    ) -> int:
+        return await self.repository.count_by_course_id(
+            course_id
+        )

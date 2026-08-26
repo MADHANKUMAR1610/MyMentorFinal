@@ -218,16 +218,18 @@ class DashboardRepository:
         self,
         user_id,
     ):
-
         result = await self.session.execute(
             select(
                 Course.id,
                 Course.title,
                 Course.difficulty,
-                Level.stage,
+
+                func.min(Level.stage).label("stage"),
+
                 func.count(
                     func.distinct(Level.id)
                 ).label("total_levels"),
+
                 func.count(
                     func.distinct(
                         Progress.level_id
@@ -255,7 +257,6 @@ class DashboardRepository:
                 Course.id,
                 Course.title,
                 Course.difficulty,
-                Level.stage,
             )
             .order_by(
                 Course.created_at.desc()

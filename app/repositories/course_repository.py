@@ -1,13 +1,15 @@
 from typing import Optional
 from uuid import UUID
 
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.course import Course
 from app.models.course_enrollment import CourseEnrollment
 from app.repositories.base import BaseRepository
 
+
+from app.models.level import Level
 
 class CourseRepository(BaseRepository[Course]):
     """
@@ -237,3 +239,55 @@ class CourseRepository(BaseRepository[Course]):
         return list(
             result.scalars().all()
         )
+
+    async def get_courses_with_level_count(
+        self,
+        *,
+        course_status: str | None = None,
+        language: str | None = None,
+        difficulty: str | None = None,
+        skip: int = 0,
+        limit: int = 100,
+    ) -> list[tuple[Course, int]]:
+
+        query = (
+            select(
+                Course,
+                func.count(Level.id).label("level_count"),
+            )
+            .outerjoin(
+                Level,
+                Level.course_id == Course.id,
+            )
+        )
+
+        if course_status is not None:
+            query = query.where(
+                Course.status == course_status
+            )
+        else:
+            query = query.where(
+                Course.status == "published"
+            )
+
+        if language is not None:
+            query = query.where(
+                Course.language == language
+            )
+
+        if difficulty is not None:
+            query = query.where(
+                Course.difficulty == difficulty
+            )
+
+        query = (
+            query
+            .group_by(Course.id)
+            .order_by(Course.created_at.desc())
+            .offset(skip)
+            .limit(limit)
+        )
+
+        result = await self.session.execute(query)
+
+        return list(result.all())

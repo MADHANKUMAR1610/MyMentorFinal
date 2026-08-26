@@ -77,7 +77,6 @@ async def create_course(
 # ============================================================
 # GET COURSES
 # ============================================================
-
 @router.get(
     "",
     response_model=list[CourseResponse],
@@ -102,46 +101,32 @@ async def get_courses(
         ge=1,
         le=100,
     ),
-    current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
 ):
     """
-    Get courses using optional filters.
+    Get published courses with level count.
+    This endpoint is public and does not require authentication.
     """
 
     service = CourseService(session)
 
-    if course_status is not None:
-        courses = await service.get_by_status(
-            course_status,
-            skip=skip,
-            limit=limit,
-        )
-
-    elif language is not None:
-        courses = await service.get_by_language(
-            language,
-            skip=skip,
-            limit=limit,
-        )
-
-    elif difficulty is not None:
-        courses = await service.get_by_difficulty(
-            difficulty,
-            skip=skip,
-            limit=limit,
-        )
-
-    else:
-        courses = await service.get_published(
-            skip=skip,
-            limit=limit,
-        )
+    rows = await service.get_courses_with_level_count(
+        course_status=course_status,
+        language=language,
+        difficulty=difficulty,
+        skip=skip,
+        limit=limit,
+    )
 
     return [
-        CourseResponse.model_validate(course)
-        for course in courses
-    ]
+    CourseResponse(
+        **{
+            **CourseResponse.model_validate(course).model_dump(),
+            "level_count": level_count,
+        }
+    )
+    for course, level_count in rows
+]
 # =====================================================
 # GET MY ENROLLMENTS
 # ============================================================

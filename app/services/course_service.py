@@ -99,3 +99,21 @@ class CourseService:
     ) -> None:
 
         await self.repository.delete(course)
+
+    async def get_courses_with_level_count(
+        self,
+        *,
+        course_status: str | None = None,
+        language: str | None = None,
+        difficulty: str | None = None,
+        skip: int = 0,
+        limit: int = 100,
+    ) -> list[tuple[Course, int]]:
+
+        return await self.repository.get_courses_with_level_count(
+            course_status=course_status,
+            language=language,
+            difficulty=difficulty,
+            skip=skip,
+            limit=limit,
+        )

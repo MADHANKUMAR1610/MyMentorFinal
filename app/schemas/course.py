@@ -93,3 +93,4 @@ class CourseResponse(BaseModel):
     certificate_template: str | None
     created_at: datetime
     updated_at: datetime
+    level_count: int = 0
