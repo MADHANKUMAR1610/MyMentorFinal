@@ -9,8 +9,22 @@ from alembic import context
 from app.core.config import settings
 from app.database.base import Base
 
+# ============================================================
+# IMPORT ALL MODELS
+# ============================================================
+
+from app.models.user import User
+from app.models.user_profile import UserProfile
+from app.models.file import File
+from app.models.work_experience import WorkExperience
+
 
 config = context.config
+
+
+# ============================================================
+# DATABASE URL
+# ============================================================
 
 config.set_main_option(
     "sqlalchemy.url",
@@ -18,12 +32,24 @@ config.set_main_option(
 )
 
 
+# ============================================================
+# LOGGING
+# ============================================================
+
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 
+# ============================================================
+# ALEMBIC METADATA
+# ============================================================
+
 target_metadata = Base.metadata
 
+
+# ============================================================
+# OFFLINE MIGRATION
+# ============================================================
 
 def run_migrations_offline() -> None:
 
@@ -44,6 +70,10 @@ def run_migrations_offline() -> None:
         context.run_migrations()
 
 
+# ============================================================
+# ONLINE MIGRATION
+# ============================================================
+
 def do_run_migrations(connection: Connection) -> None:
 
     context.configure(
@@ -56,6 +86,10 @@ def do_run_migrations(connection: Connection) -> None:
     with context.begin_transaction():
         context.run_migrations()
 
+
+# ============================================================
+# ASYNC MIGRATION
+# ============================================================
 
 async def run_async_migrations() -> None:
 
@@ -73,6 +107,10 @@ async def run_async_migrations() -> None:
 
     await connectable.dispose()
 
+
+# ============================================================
+# RUN MIGRATION
+# ============================================================
 
 def run_migrations_online() -> None:
 
