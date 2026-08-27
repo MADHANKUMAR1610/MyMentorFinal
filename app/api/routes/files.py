@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import get_current_user
 from app.database.database import get_db
-from app.models.file import File
+
 from app.models.user import User
 from app.models.user_profile import UserProfile
 from app.schemas.file import FileUploadResponse
@@ -92,10 +92,12 @@ async def upload_file(
 # =========================================================
 # PROFILE PHOTO UPLOAD
 # =========================================================
+# =========================================================
+# PROFILE PHOTO UPLOAD
+# =========================================================
 
 @router.post(
     "/profile-photo",
-    response_model=FileUploadResponse,
     status_code=status.HTTP_201_CREATED,
 )
 async def upload_profile_photo(
@@ -104,17 +106,15 @@ async def upload_profile_photo(
     session: AsyncSession = Depends(get_db),
 ):
     """
-    Upload a profile photo for the currently authenticated user.
+    Upload a profile photo.
 
-    Only JPG, PNG, and WEBP images are allowed.
-
-    After uploading the image, the file ID is automatically
-    saved into user_profiles.profile_photo_file_id.
+    This endpoint can be used before the user profile
+    is created.
     """
 
-    # =========================================================
+    # =====================================================
     # VALIDATE FILE NAME
-    # =========================================================
+    # =====================================================
 
     if not file.filename:
         raise HTTPException(
@@ -122,9 +122,9 @@ async def upload_profile_photo(
             detail="File name is required.",
         )
 
-    # =========================================================
+    # =====================================================
     # ALLOWED IMAGE TYPES
-    # =========================================================
+    # =====================================================
 
     allowed_content_types = {
         "image/jpeg",
@@ -132,46 +132,17 @@ async def upload_profile_photo(
         "image/webp",
     }
 
-    # =========================================================
-    # VALIDATE IMAGE TYPE
-    # =========================================================
-
     if file.content_type not in allowed_content_types:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=(
-                "Only JPG, PNG, and WEBP images are allowed "
-                "for profile photos."
-            ),
+            detail="Only JPG, PNG, and WEBP images are allowed.",
         )
 
-    # =========================================================
-    # FIND CURRENT USER PROFILE
-    # =========================================================
-
-    result = await session.execute(
-        select(UserProfile).where(
-            UserProfile.user_id == current_user.id
-        )
-    )
-
-    profile = result.scalar_one_or_none()
-
-    if profile is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User profile not found.",
-        )
-
-    # =========================================================
+    # =====================================================
     # FILE SERVICE
-    # =========================================================
+    # =====================================================
 
     service = FileService(session)
-
-    # =========================================================
-    # UPLOAD IMAGE TO CLOUDINARY
-    # =========================================================
 
     try:
         created_file, public_url = await service.upload_file(
@@ -186,54 +157,20 @@ async def upload_profile_photo(
             detail=str(exc),
         ) from exc
 
-    # =========================================================
-    # OPTIONAL:
-    # SOFT DELETE OLD PROFILE PHOTO
-    # =========================================================
-
-    old_file_id = profile.profile_photo_file_id
-
-    if old_file_id is not None:
-        old_file_result = await session.execute(
-            select(File).where(
-                File.id == old_file_id
-            )
-        )
-
-        old_file = old_file_result.scalar_one_or_none()
-
-        if old_file is not None:
-            old_file.is_deleted = True
-
-    # =========================================================
-    # SET NEW PROFILE PHOTO
-    # =========================================================
-
-    profile.profile_photo_file_id = created_file.id
-
-    # =========================================================
-    # SAVE DATABASE CHANGES
-    # =========================================================
+    # =====================================================
+    # SAVE FILE RECORD
+    # =====================================================
 
     await session.commit()
 
-    # =========================================================
-    # REFRESH PROFILE
-    # =========================================================
-
-    await session.refresh(profile)
-
-    # =========================================================
+    # =====================================================
     # RESPONSE
-    # =========================================================
+    # =====================================================
 
-    return FileUploadResponse(
-        id=created_file.id,
-        file_name=created_file.original_filename,
-        file_url=public_url,
-        content_type=created_file.content_type,
-        size=created_file.size,
-    )
+    return {
+        "file_id": created_file.id,
+        "public_url": public_url,
+    }
     # =========================================================
 # UPDATE / REPLACE PROFILE PHOTO
 # =========================================================
@@ -310,7 +247,7 @@ async def update_profile_photo(
     # SAVE OLD PROFILE PHOTO ID
     # =========================================================
 
-    old_profile_photo_file_id = profile.profile_photo_file_id
+    
 
     # =========================================================
     # FILE SERVICE
