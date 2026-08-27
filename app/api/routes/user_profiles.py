@@ -1,6 +1,7 @@
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import get_current_user
@@ -12,7 +13,9 @@ from app.schemas.user_profile import (
     UserProfileResponse,
     UserProfileUpdate,
 )
+
 from app.services.user_profile_service import UserProfileService
+from app.services.file_service import FileService
 
 
 router = APIRouter(
@@ -38,6 +41,7 @@ async def get_my_profile(
     """
 
     service = UserProfileService(session)
+    
 
     profile = await service.get_by_user_id(current_user.id)
 
@@ -69,6 +73,7 @@ async def create_my_profile(
     """
 
     service = UserProfileService(session)
+    file_service = FileService(session)
 
     existing_profile = await service.get_by_user_id(
         current_user.id
@@ -80,8 +85,50 @@ async def create_my_profile(
             detail="User profile already exists.",
         )
 
+    # =====================================================
+    # PROFILE PHOTO VALIDATION
+    # =====================================================
+
+    if data.profile_photo_file_id is not None:
+
+        file = await file_service.get_by_id(
+            data.profile_photo_file_id
+        )
+
+        if file is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Profile photo file not found.",
+            )
+
+        if file.uploaded_by != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You cannot use this file as your profile photo.",
+            )
+
+        if (
+            not file.content_type
+            or not file.content_type.startswith("image/")
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Only image files can be used as a profile photo.",
+            )
+
+        if file.is_deleted:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="This file is no longer available.",
+            )
+
+    # =====================================================
+    # CREATE PROFILE
+    # =====================================================
+
     profile = UserProfile(
         user_id=current_user.id,
+        profile_photo_file_id=data.profile_photo_file_id,
         dob=data.dob,
         age=data.age,
         profile_category=data.profile_category,
@@ -104,7 +151,6 @@ async def create_my_profile(
 # =========================================================
 # UPDATE MY PROFILE
 # =========================================================
-
 @router.put(
     "/me",
     response_model=UserProfileResponse,
@@ -121,6 +167,7 @@ async def update_my_profile(
     """
 
     service = UserProfileService(session)
+    file_service = FileService(session)
 
     profile = await service.get_by_user_id(
         current_user.id
@@ -166,8 +213,7 @@ async def update_my_profile(
 
     if data.profile_photo_file_id is not None:
 
-        # Verify that the file exists
-        file = await service.get_file_by_id(
+        file = await file_service.get_by_id(
             data.profile_photo_file_id
         )
 
@@ -194,7 +240,13 @@ async def update_my_profile(
                 detail="Only image files can be used as a profile photo.",
             )
 
-        # Set profile photo
+        # Make sure the file is not deleted
+        if file.is_deleted:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="This file is no longer available.",
+            )
+
         profile.profile_photo_file_id = (
             data.profile_photo_file_id
         )
@@ -210,8 +262,6 @@ async def update_my_profile(
     return UserProfileResponse.model_validate(
         updated_profile
     )
-
-
 # =========================================================
 # GET PROFILE BY ID
 # =========================================================
