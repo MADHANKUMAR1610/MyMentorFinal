@@ -1,5 +1,3 @@
-# app/api/routes/career_personas.py
-
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -46,19 +44,16 @@ async def create_my_career_persona(
     session: AsyncSession = Depends(get_db),
 ):
 
-    # --------------------------------------------------------
-    # 1. Career Persona Service
-    # --------------------------------------------------------
-
     service = CareerPersonaService(session)
 
     existing_persona = await service.get_by_user_id(
         current_user.id
     )
 
-    # --------------------------------------------------------
-    # 2. Generate Career Path using existing Gemini service
-    # --------------------------------------------------------
+    # ========================================================
+    # GEMINI
+    # DO NOT CHANGE THIS
+    # ========================================================
 
     try:
 
@@ -77,9 +72,9 @@ async def create_my_career_persona(
             detail=str(exc),
         )
 
-    # --------------------------------------------------------
-    # 3. Create Career Persona
-    # --------------------------------------------------------
+    # ========================================================
+    # CREATE
+    # ========================================================
 
     if existing_persona is None:
 
@@ -89,15 +84,19 @@ async def create_my_career_persona(
             profile={},
             answers=data.answers,
             result=ai_result,
+
+            # IMPORTANT
+            # New career result is NOT visible initially
+            is_profile_visible=False,
         )
 
         persona = await service.create_persona(
             persona
         )
 
-    # --------------------------------------------------------
-    # 4. Update existing Career Persona
-    # --------------------------------------------------------
+    # ========================================================
+    # UPDATE EXISTING
+    # ========================================================
 
     else:
 
@@ -106,13 +105,17 @@ async def create_my_career_persona(
         existing_persona.answers = data.answers
         existing_persona.result = ai_result
 
+        # IMPORTANT
+        # Every new AI result requires a new YES/NO decision
+        existing_persona.is_profile_visible = False
+
         persona = await service.update_persona(
             existing_persona
         )
 
-    # --------------------------------------------------------
-    # 5. Return Career Path + Calendar confirmation
-    # --------------------------------------------------------
+    # ========================================================
+    # RETURN AI RESULT + YES/NO CONFIRMATION
+    # ========================================================
 
     return CareerPersonaFlowResponse(
         requires_class_selection=False,
@@ -121,12 +124,94 @@ async def create_my_career_persona(
             persona
         ),
 
-        show_calendar_confirmation=True,
+        show_profile_confirmation=True,
 
-        calendar_message=(
-            "Would you like to add this Career Plan "
-            "to your Career Calendar?"
+        profile_confirmation_message=(
+            "Would you like to show this Career Plan "
+            "on your Profile?"
         ),
+    )
+
+
+# ============================================================
+# YES - SHOW CAREER PERSONA ON PROFILE
+# ============================================================
+
+@router.post(
+    "/me/profile/yes",
+    response_model=CareerPersonaResponse,
+)
+async def show_career_persona_on_profile(
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+):
+
+    service = CareerPersonaService(session)
+
+    persona = await service.get_by_user_id(
+        current_user.id
+    )
+
+    if persona is None:
+
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Career persona not found.",
+        )
+
+    # ========================================================
+    # USER CLICKED YES
+    # ========================================================
+
+    persona.is_profile_visible = True
+
+    updated_persona = await service.update_persona(
+        persona
+    )
+
+    return CareerPersonaResponse.model_validate(
+        updated_persona
+    )
+
+
+# ============================================================
+# NO - DON'T SHOW CAREER PERSONA ON PROFILE
+# ============================================================
+
+@router.post(
+    "/me/profile/no",
+    response_model=CareerPersonaResponse,
+)
+async def hide_career_persona_from_profile(
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+):
+
+    service = CareerPersonaService(session)
+
+    persona = await service.get_by_user_id(
+        current_user.id
+    )
+
+    if persona is None:
+
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Career persona not found.",
+        )
+
+    # ========================================================
+    # USER CLICKED NO
+    # ========================================================
+
+    persona.is_profile_visible = False
+
+    updated_persona = await service.update_persona(
+        persona
+    )
+
+    return CareerPersonaResponse.model_validate(
+        updated_persona
     )
 
 
@@ -150,6 +235,7 @@ async def get_my_career_persona(
     )
 
     if persona is None:
+
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Career persona not found.",
@@ -181,16 +267,24 @@ async def get_career_persona_by_id(
     )
 
     if persona is None:
+
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Career persona not found.",
         )
 
-    # User can access only their own persona
+    # ========================================================
+    # SECURITY
+    # ========================================================
+
     if persona.user_id != current_user.id:
+
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="You do not have access to this career persona.",
+            detail=(
+                "You do not have access to this "
+                "career persona."
+            ),
         )
 
     return CareerPersonaResponse.model_validate(
@@ -219,42 +313,43 @@ async def update_my_career_persona(
     )
 
     if persona is None:
+
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Career persona not found.",
         )
 
-    # --------------------------------------------------------
-    # Update goal
-    # --------------------------------------------------------
+    # ========================================================
+    # UPDATE GOAL
+    # ========================================================
 
     if data.goal is not None:
         persona.goal = data.goal
 
-    # --------------------------------------------------------
-    # Update profile
-    # --------------------------------------------------------
+    # ========================================================
+    # UPDATE PROFILE
+    # ========================================================
 
     if data.profile is not None:
         persona.profile = data.profile
 
-    # --------------------------------------------------------
-    # Update answers
-    # --------------------------------------------------------
+    # ========================================================
+    # UPDATE ANSWERS
+    # ========================================================
 
     if data.answers is not None:
         persona.answers = data.answers
 
-    # --------------------------------------------------------
-    # Update AI result
-    # --------------------------------------------------------
+    # ========================================================
+    # UPDATE AI RESULT
+    # ========================================================
 
     if data.result is not None:
         persona.result = data.result
 
-    # --------------------------------------------------------
-    # Save
-    # --------------------------------------------------------
+    # ========================================================
+    # SAVE
+    # ========================================================
 
     updated_persona = await service.update_persona(
         persona

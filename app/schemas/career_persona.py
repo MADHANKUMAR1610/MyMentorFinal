@@ -1,41 +1,37 @@
-# app/schemas/career_persona.py
-
-from typing import Any
+from typing import Any, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict
 
 
 # ============================================================
-# CREATE CAREER PERSONA
+# CREATE
 # ============================================================
 
 class CareerPersonaCreate(BaseModel):
 
     goal: str
 
-    answers: dict[str, Any] = Field(
-        default_factory=dict
-    )
+    answers: dict[str, Any] = {}
 
 
 # ============================================================
-# UPDATE CAREER PERSONA
+# UPDATE
 # ============================================================
 
 class CareerPersonaUpdate(BaseModel):
 
-    goal: str | None = None
+    goal: Optional[str] = None
 
-    profile: dict[str, Any] | None = None
+    profile: Optional[dict[str, Any]] = None
 
-    answers: dict[str, Any] | None = None
+    answers: Optional[dict[str, Any]] = None
 
-    result: dict[str, Any] | None = None
+    result: Optional[dict[str, Any]] = None
 
 
 # ============================================================
-# CAREER PERSONA RESPONSE
+# RESPONSE
 # ============================================================
 
 class CareerPersonaResponse(BaseModel):
@@ -56,13 +52,32 @@ class CareerPersonaResponse(BaseModel):
 
     result: dict[str, Any]
 
+    is_profile_visible: bool
+
 
 # ============================================================
-# CAREER PERSONA FLOW RESPONSE
+# GENERATE FLOW RESPONSE
 # ============================================================
 
 class CareerPersonaFlowResponse(BaseModel):
 
     requires_class_selection: bool
 
-    career_persona: CareerPersonaResponse | None = None
+    career_persona: CareerPersonaResponse
+
+    show_profile_confirmation: bool
+
+    profile_confirmation_message: str
+
+
+# ============================================================
+# PROFILE RESPONSE
+# ============================================================
+
+class CareerPersonaProfileResponse(BaseModel):
+
+    message: str
+
+    profile_visible: bool
+
+    career_persona: CareerPersonaResponse

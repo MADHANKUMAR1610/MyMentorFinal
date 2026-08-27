@@ -1,54 +1,60 @@
-# app/models/career_persona.py
+from uuid import uuid4
 
-import uuid
-
-from sqlalchemy import ForeignKey
+from sqlalchemy import Boolean, Column, ForeignKey, Text
 from sqlalchemy.dialects.postgresql import UUID, JSONB
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import relationship
 
 from app.database.database import Base
-from app.models.base import UUIDPrimaryKeyMixin, TimestampMixin
 
 
-class CareerPersona(
-    UUIDPrimaryKeyMixin,
-    TimestampMixin,
-    Base,
-):
+class CareerPersona(Base):
     __tablename__ = "career_personas"
 
-    user_id: Mapped[uuid.UUID] = mapped_column(
+    id = Column(
         UUID(as_uuid=True),
-        ForeignKey(
-            "users.id",
-            ondelete="CASCADE",
-        ),
-        unique=True,
-        nullable=False,
-        index=True,
+        primary_key=True,
+        default=uuid4,
     )
 
-    goal: Mapped[str] = mapped_column(
+    user_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id"),
         nullable=False,
     )
 
-    profile: Mapped[dict] = mapped_column(
+    goal = Column(
+        Text,
+        nullable=False,
+    )
+
+    profile = Column(
         JSONB,
-        nullable=False,
         default=dict,
+        nullable=False,
     )
 
-    answers: Mapped[dict] = mapped_column(
+    answers = Column(
         JSONB,
-        nullable=False,
         default=dict,
+        nullable=False,
     )
 
-    result: Mapped[dict] = mapped_column(
+    result = Column(
         JSONB,
-        nullable=False,
         default=dict,
+        nullable=False,
     )
+
+    is_profile_visible = Column(
+        Boolean,
+        default=False,
+        server_default="false",
+        nullable=False,
+    )
+
+    # ========================================================
+    # RELATIONSHIP
+    # ========================================================
 
     user = relationship(
         "User",
