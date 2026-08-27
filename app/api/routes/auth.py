@@ -3,7 +3,6 @@ from fastapi import (
     Depends,
     HTTPException,
     Query,
-    Request,
     status,
 )
 from fastapi.responses import RedirectResponse
@@ -16,6 +15,7 @@ from app.schemas.auth import LoginRequest, TokenResponse
 from app.schemas.user import UserCreate, UserResponse
 from app.services.auth_service import AuthService
 from app.services.google_auth_service import GoogleAuthService
+
 
 router = APIRouter(
     prefix="/auth",
@@ -51,7 +51,8 @@ async def register(
 
 
 # ============================================================
-# LOGIN
+# NORMAL LOGIN
+# STUDENT / NORMAL USER
 # ============================================================
 
 @router.post(
@@ -85,6 +86,7 @@ async def login(
 
 # ============================================================
 # ADMIN LOGIN
+# SYSTEM ADMIN + COMPANY ADMIN
 # ============================================================
 
 @router.post(
@@ -108,17 +110,46 @@ async def admin_login(
             detail="Invalid email or password.",
         )
 
-    if user.role != "admin":
+    # --------------------------------------------------------
+    # SYSTEM ADMIN
+    # OR
+    # COMPANY ADMIN
+    # --------------------------------------------------------
+
+    if user.role not in {
+        "admin",
+        "company_admin",
+    }:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin access required.",
         )
+
+    # --------------------------------------------------------
+    # ACTIVE CHECK
+    # --------------------------------------------------------
 
     if not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin account is inactive.",
         )
+
+    # --------------------------------------------------------
+    # COMPANY ADMIN MUST HAVE COMPANY
+    # --------------------------------------------------------
+
+    if user.role == "company_admin":
+
+        if user.company_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Company admin is not linked to a company.",
+            )
+
+    # --------------------------------------------------------
+    # CREATE JWT
+    # --------------------------------------------------------
 
     access_token = service.create_token(user)
 
@@ -139,13 +170,6 @@ async def get_me(
     return UserResponse.model_validate(current_user)
 
 
-# ============================================================
-# GOOGLE LOGIN
-# ============================================================
-
-# ============================================================
-# GOOGLE LOGIN
-# ============================================================
 # ============================================================
 # GOOGLE LOGIN
 # ============================================================
@@ -190,17 +214,20 @@ async def google_callback(
     service = GoogleAuthService(session)
 
     try:
+
         user, jwt_token = await service.authenticate_with_code(
             code
         )
 
     except ValueError as exc:
+
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(exc),
         )
 
     except Exception as exc:
+
         print("Google OAuth Error:", exc)
 
         raise HTTPException(
@@ -214,6 +241,7 @@ async def google_callback(
     }
 
     if state not in allowed_frontends:
+
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid OAuth redirect.",

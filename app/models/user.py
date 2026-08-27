@@ -1,10 +1,18 @@
-# app/models/user.py
+import uuid
 
-from sqlalchemy import Boolean, Integer, String
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy import Boolean, ForeignKey, Integer, String
+from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import (
+    Mapped,
+    mapped_column,
+    relationship,
+)
 
 from app.database.database import Base
-from app.models.base import UUIDPrimaryKeyMixin, TimestampMixin
+from app.models.base import (
+    UUIDPrimaryKeyMixin,
+    TimestampMixin,
+)
 
 
 class User(
@@ -13,6 +21,10 @@ class User(
     Base,
 ):
     __tablename__ = "users"
+
+    # ========================================================
+    # BASIC INFORMATION
+    # ========================================================
 
     email: Mapped[str | None] = mapped_column(
         String(255),
@@ -53,6 +65,29 @@ class User(
         index=True,
     )
 
+    # ========================================================
+    # COMPANY
+    # ========================================================
+
+    company_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey(
+            "companies.id",
+            ondelete="SET NULL",
+        ),
+        nullable=True,
+        index=True,
+    )
+
+    company = relationship(
+        "Company",
+        foreign_keys=[company_id],
+    )
+
+    # ========================================================
+    # ACCOUNT STATUS
+    # ========================================================
+
     is_active: Mapped[bool] = mapped_column(
         Boolean,
         nullable=False,
@@ -87,6 +122,10 @@ class User(
         nullable=False,
         default=False,
     )
+
+    # ========================================================
+    # RELATIONSHIPS
+    # ========================================================
 
     profile = relationship(
         "UserProfile",

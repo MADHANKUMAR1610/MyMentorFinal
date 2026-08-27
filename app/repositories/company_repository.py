@@ -8,23 +8,27 @@ from app.models.company import Company
 from app.repositories.base import BaseRepository
 
 
-class CompanyRepository(BaseRepository[Company]):
-    """
-    Repository responsible for Company database operations.
+class CompanyRepository(
+    BaseRepository[Company]
+):
 
-    Business rules belong in the service layer.
-    """
+    def __init__(
+        self,
+        session: AsyncSession,
+    ):
+        super().__init__(
+            Company,
+            session,
+        )
 
-    def __init__(self, session: AsyncSession):
-        super().__init__(Company, session)
+    # ========================================================
+    # GET BY NAME
+    # ========================================================
 
     async def get_by_name(
         self,
         name: str,
     ) -> Optional[Company]:
-        """
-        Get a company by name.
-        """
 
         result = await self.session.execute(
             select(Company).where(
@@ -34,6 +38,10 @@ class CompanyRepository(BaseRepository[Company]):
 
         return result.scalar_one_or_none()
 
+    # ========================================================
+    # GET BY INDUSTRY
+    # ========================================================
+
     async def get_by_industry(
         self,
         industry: str,
@@ -41,9 +49,6 @@ class CompanyRepository(BaseRepository[Company]):
         skip: int = 0,
         limit: int = 100,
     ) -> list[Company]:
-        """
-        Get companies by industry.
-        """
 
         result = await self.session.execute(
             select(Company)
@@ -54,7 +59,13 @@ class CompanyRepository(BaseRepository[Company]):
             .limit(limit)
         )
 
-        return list(result.scalars().all())
+        return list(
+            result.scalars().all()
+        )
+
+    # ========================================================
+    # GET BY STATUS
+    # ========================================================
 
     async def get_by_status(
         self,
@@ -63,9 +74,6 @@ class CompanyRepository(BaseRepository[Company]):
         skip: int = 0,
         limit: int = 100,
     ) -> list[Company]:
-        """
-        Get companies by status.
-        """
 
         result = await self.session.execute(
             select(Company)
@@ -76,7 +84,13 @@ class CompanyRepository(BaseRepository[Company]):
             .limit(limit)
         )
 
-        return list(result.scalars().all())
+        return list(
+            result.scalars().all()
+        )
+
+    # ========================================================
+    # GET VERIFIED
+    # ========================================================
 
     async def get_verified(
         self,
@@ -84,9 +98,6 @@ class CompanyRepository(BaseRepository[Company]):
         skip: int = 0,
         limit: int = 100,
     ) -> list[Company]:
-        """
-        Get verified companies.
-        """
 
         result = await self.session.execute(
             select(Company)
@@ -97,7 +108,13 @@ class CompanyRepository(BaseRepository[Company]):
             .limit(limit)
         )
 
-        return list(result.scalars().all())
+        return list(
+            result.scalars().all()
+        )
+
+    # ========================================================
+    # GET BY LOCATION
+    # ========================================================
 
     async def get_by_location(
         self,
@@ -106,9 +123,6 @@ class CompanyRepository(BaseRepository[Company]):
         skip: int = 0,
         limit: int = 100,
     ) -> list[Company]:
-        """
-        Get companies by location.
-        """
 
         result = await self.session.execute(
             select(Company)
@@ -119,4 +133,6 @@ class CompanyRepository(BaseRepository[Company]):
             .limit(limit)
         )
 
-        return list(result.scalars().all())
+        return list(
+            result.scalars().all()
+        )
