@@ -33,9 +33,7 @@ from app.api.routes.courses import (
     router as courses_router,
 )
 
-from app.api.routes.company_onboarding import (
-    router as company_onboarding_router,
-)
+
 
 from app.api.routes.levels import (
     router as levels_router,
@@ -223,10 +221,6 @@ api_router.include_router(
 # ============================================================
 # COMPANY ONBOARDING
 # ============================================================
-
-api_router.include_router(
-    company_onboarding_router
-)
 
 
 # ============================================================
