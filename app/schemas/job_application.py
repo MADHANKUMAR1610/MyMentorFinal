@@ -1,6 +1,8 @@
 from datetime import datetime
 from uuid import UUID
 
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -63,6 +65,15 @@ class JobApplicationUpdate(BaseModel):
         default=None,
         max_length=30,
     )
+class JobApplicationStatusUpdate(BaseModel):
+    status: Literal[
+        "submitted",
+        "reviewing",
+        "shortlisted",
+        "interview",
+        "selected",
+        "rejected",
+    ]
 
 
 class JobApplicationResponse(BaseModel):
@@ -82,3 +93,19 @@ class JobApplicationResponse(BaseModel):
     status: str
     created_at: datetime
     updated_at: datetime
+class JobApplicationStatsResponse(BaseModel):
+    total: int
+    submitted: int
+    reviewing: int
+    shortlisted: int
+    interview: int
+    selected: int
+    rejected: int
+class OrganizationApplicationStatsResponse(BaseModel):
+    total: int
+    submitted: int
+    reviewing: int
+    shortlisted: int
+    interview: int
+    selected: int
+    rejected: int

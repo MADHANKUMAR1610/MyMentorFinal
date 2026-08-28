@@ -32,7 +32,9 @@ from app.api.routes.job_applications import (
 from app.api.routes.courses import (
     router as courses_router,
 )
-
+from app.api.routes.organizations import (
+    router as organizations_router,
+)
 
 
 from app.api.routes.levels import (
@@ -74,7 +76,18 @@ from app.api.routes.work_experience import (
 from app.api.routes.code_execution import (
     router as code_execution_router,
 )
-
+from app.api.routes.organization_applications import (
+    router as organization_applications_router,
+)
+from app.api.routes.organization_member import (
+    router as organization_member_router,
+)
+from app.api.routes.interview import (
+    router as interview_router,
+)
+from app.api.routes.organization_analytics import (
+    router as organization_analytics_router,
+)
 
 # ============================================================
 # MAIN API ROUTER
@@ -267,7 +280,19 @@ api_router.include_router(
     courses_router
 )
 
+api_router.include_router(organizations_router)
 
-# ============================================================
-# LEVELS
-# ============================================================
+api_router.include_router(
+    organization_applications_router
+)
+
+api_router.include_router(
+    organization_member_router
+)
+
+api_router.include_router(
+    interview_router
+)
+api_router.include_router(
+    organization_analytics_router
+)

@@ -15,3 +15,4 @@ from app.models.checkpoint import Checkpoint
 from app.models.progress import Progress
 from app.models.file import File
 from app.models.course_enrollment import CourseEnrollment
+from app.models.interview import Interview

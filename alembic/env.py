@@ -9,14 +9,12 @@ from alembic import context
 from app.core.config import settings
 from app.database.base import Base
 
+
 # ============================================================
 # IMPORT ALL MODELS
 # ============================================================
 
-from app.models.user import User
-from app.models.user_profile import UserProfile
-from app.models.file import File
-from app.models.work_experience import WorkExperience
+import app.models
 
 
 config = context.config
