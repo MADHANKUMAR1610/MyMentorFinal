@@ -11,7 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 JobStatus = Literal[
     "draft",
-    "open",
+    "active",
     "closed",
 ]
 
@@ -367,7 +367,7 @@ class OrganizationJobStatusUpdate(BaseModel):
 
     status: Literal[
         "draft",
-        "open",
+        "active",
         "closed",
     ]
 

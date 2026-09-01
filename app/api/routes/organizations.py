@@ -58,19 +58,6 @@ async def update_my_organization(
         data,
     )
 @router.get(
-    "/me/dashboard",
-    response_model=OrganizationDashboardResponse,
-)
-async def get_my_dashboard(
-    current_user=Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    service = OrganizationDashboardService(db)
-
-    return await service.get_my_dashboard(
-        current_user.id
-    )
-@router.get(
     "/me/jobs",
     response_model=list[OrganizationJobResponse],
 )

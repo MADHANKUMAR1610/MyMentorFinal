@@ -6,15 +6,20 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.repositories.organization_repository import (
     OrganizationRepository,
 )
+
 from app.repositories.organization_member_repository import (
     OrganizationMemberRepository,
 )
+
 from app.core.security import hash_password
 
 
 class OrganizationMemberService:
 
-    def __init__(self, db: AsyncSession):
+    def __init__(
+        self,
+        db: AsyncSession,
+    ):
 
         self.organization_repository = (
             OrganizationRepository(db)
@@ -25,7 +30,7 @@ class OrganizationMemberService:
         )
 
     # ============================================================
-    # GET MY ORGANIZATION MEMBERS
+    # GET MY MEMBERS
     # ============================================================
 
     async def get_my_members(
@@ -36,12 +41,13 @@ class OrganizationMemberService:
         limit: int = 100,
     ):
 
-        company = await (
+        organization = await (
             self.organization_repository
             .get_by_admin_user_id(user_id)
         )
 
-        if company is None:
+        if organization is None:
+
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Organization not found for this user.",
@@ -50,14 +56,14 @@ class OrganizationMemberService:
         return await (
             self.member_repository
             .get_members_by_company_id(
-                company.id,
+                organization.id,
                 skip=skip,
                 limit=limit,
             )
         )
 
     # ============================================================
-    # GET SINGLE ORGANIZATION MEMBER
+    # GET MEMBER
     # ============================================================
 
     async def get_member(
@@ -66,12 +72,13 @@ class OrganizationMemberService:
         member_id: UUID,
     ):
 
-        company = await (
+        organization = await (
             self.organization_repository
             .get_by_admin_user_id(user_id)
         )
 
-        if company is None:
+        if organization is None:
+
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Organization not found for this user.",
@@ -80,12 +87,13 @@ class OrganizationMemberService:
         member = await (
             self.member_repository
             .get_member_by_id(
-                user_id=member_id,
-                company_id=company.id,
+                member_id,
+                organization.id,
             )
         )
 
         if member is None:
+
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Organization member not found.",
@@ -94,51 +102,55 @@ class OrganizationMemberService:
         return member
 
     # ============================================================
-    # CREATE ORGANIZATION MEMBER
+    # CREATE MEMBER
     # ============================================================
 
     async def create_member(
         self,
         user_id: UUID,
-        *,
         name: str,
         email: str,
         phone: str | None,
+        department: str | None,
+        designation: str | None,
+        role: str,
         password: str,
     ):
 
         # --------------------------------------------------------
-        # Find organization of logged-in admin
+        # Find organization
         # --------------------------------------------------------
 
-        company = await (
+        organization = await (
             self.organization_repository
             .get_by_admin_user_id(user_id)
         )
 
-        if company is None:
+        if organization is None:
+
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Organization not found for this user.",
             )
 
         # --------------------------------------------------------
-        # Check email
+        # Check email already exists
         # --------------------------------------------------------
 
-        existing_user = await (
+        existing_email = await (
             self.member_repository
             .get_user_by_email(email)
         )
 
-        if existing_user is not None:
+        if existing_email is not None:
+
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="A user with this email already exists.",
             )
 
         # --------------------------------------------------------
-        # Check phone
+        # Check phone already exists
         # --------------------------------------------------------
 
         if phone:
@@ -149,6 +161,7 @@ class OrganizationMemberService:
             )
 
             if existing_phone is not None:
+
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
                     detail="A user with this phone number already exists.",
@@ -161,24 +174,25 @@ class OrganizationMemberService:
         password_hash = hash_password(password)
 
         # --------------------------------------------------------
-        # Create organization member
+        # Create user
         # --------------------------------------------------------
 
-        member = await (
+        return await (
             self.member_repository
             .create_member(
                 name=name,
                 email=email,
                 phone=phone,
+                department=department,
+                designation=designation,
+                role=role,
                 password_hash=password_hash,
-                company_id=company.id,
+                company_id=organization.id,
             )
         )
 
-        return member
-
     # ============================================================
-    # UPDATE ORGANIZATION MEMBER
+    # UPDATE MEMBER
     # ============================================================
 
     async def update_member(
@@ -188,38 +202,60 @@ class OrganizationMemberService:
         data: dict,
     ):
 
-        company = await (
-            self.organization_repository
-            .get_by_admin_user_id(user_id)
+        member = await self.get_member(
+            user_id,
+            member_id,
         )
 
-        if company is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Organization not found for this user.",
-            )
-
-        member = await (
-            self.member_repository
-            .get_member_by_id(
-                user_id=member_id,
-                company_id=company.id,
-            )
-        )
-
-        if member is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Organization member not found.",
-            )
-
         # --------------------------------------------------------
-        # Protected fields
+        # Check email uniqueness
         # --------------------------------------------------------
 
-        data.pop("company_id", None)
-        data.pop("password", None)
-        data.pop("password_hash", None)
+        if "email" in data:
+
+            email = data["email"]
+
+            if email and email != member.email:
+
+                existing = await (
+                    self.member_repository
+                    .get_user_by_email(email)
+                )
+
+                if (
+                    existing is not None
+                    and existing.id != member.id
+                ):
+
+                    raise HTTPException(
+                        status_code=status.HTTP_409_CONFLICT,
+                        detail="A user with this email already exists.",
+                    )
+
+        # --------------------------------------------------------
+        # Check phone uniqueness
+        # --------------------------------------------------------
+
+        if "phone" in data:
+
+            phone = data["phone"]
+
+            if phone and phone != member.phone:
+
+                existing = await (
+                    self.member_repository
+                    .get_user_by_phone(phone)
+                )
+
+                if (
+                    existing is not None
+                    and existing.id != member.id
+                ):
+
+                    raise HTTPException(
+                        status_code=status.HTTP_409_CONFLICT,
+                        detail="A user with this phone number already exists.",
+                    )
 
         # --------------------------------------------------------
         # Update fields
@@ -228,14 +264,20 @@ class OrganizationMemberService:
         for field, value in data.items():
 
             if value is not None:
-                setattr(member, field, value)
 
-        return await self.member_repository.update(
-            member
+                setattr(
+                    member,
+                    field,
+                    value,
+                )
+
+        return await (
+            self.member_repository
+            .update(member)
         )
 
     # ============================================================
-    # REMOVE ORGANIZATION MEMBER
+    # REMOVE MEMBER
     # ============================================================
 
     async def remove_member(
@@ -244,53 +286,18 @@ class OrganizationMemberService:
         member_id: UUID,
     ):
 
-        company = await (
-            self.organization_repository
-            .get_by_admin_user_id(user_id)
+        member = await self.get_member(
+            user_id,
+            member_id,
         )
 
-        if company is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Organization not found for this user.",
-            )
-
-        member = await (
+        await (
             self.member_repository
-            .get_member_by_id(
-                user_id=member_id,
-                company_id=company.id,
-            )
-        )
-
-        if member is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Organization member not found.",
-            )
-
-        # --------------------------------------------------------
-        # Protect organization admin
-        # --------------------------------------------------------
-
-        if company.admin_user_id == member.id:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Organization admin cannot be removed.",
-            )
-
-        # --------------------------------------------------------
-        # Remove organization association
-        # --------------------------------------------------------
-
-        member.company_id = None
-
-        return await self.member_repository.update(
-            member
+            .delete(member)
         )
 
     # ============================================================
-    # UPDATE MEMBER ACTIVE STATUS
+    # UPDATE ACTIVE STATUS
     # ============================================================
 
     async def update_member_status(
@@ -300,43 +307,62 @@ class OrganizationMemberService:
         is_active: bool,
     ):
 
+        member = await self.get_member(
+            user_id,
+            member_id,
+        )
+
+        member.is_active = is_active
+
+        return await (
+            self.member_repository
+            .update(member)
+        )
+
+    async def reset_member_password(
+        self,
+        user_id: UUID,
+        member_id: UUID,
+        new_password: str,
+    ):
         company = await (
             self.organization_repository
             .get_by_admin_user_id(user_id)
         )
 
-        if company is None:
+        if not company:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Organization not found for this user.",
+                detail="Organization not found for this user",
             )
 
         member = await (
             self.member_repository
             .get_member_by_id(
-                user_id=member_id,
-                company_id=company.id,
+                member_id,
+                company.id,
             )
         )
 
-        if member is None:
+        if not member:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Organization member not found.",
+                detail="Organization member not found",
             )
 
-        # --------------------------------------------------------
-        # Protect organization admin
-        # --------------------------------------------------------
-
-        if company.admin_user_id == member.id:
+        # Prevent admin from resetting their own password
+        if member.id == user_id:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Organization admin status cannot be changed.",
+                detail="You cannot reset your own password using this API",
             )
 
-        member.is_active = is_active
+        password_hash = hash_password(new_password)
 
-        return await self.member_repository.update(
-            member
+        return await (
+            self.member_repository
+            .update_password(
+                member,
+                password_hash,
+            )
         )

@@ -16,6 +16,7 @@ from app.schemas.organization_member import (
     OrganizationMemberResponse,
     OrganizationMemberUpdate,
     OrganizationMemberStatusUpdate,
+    OrganizationMemberPasswordReset,
 )
 
 from app.services.organization_member_service import (
@@ -114,8 +115,7 @@ async def create_organization_member(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Create a new organization member under
-    the current user's organization.
+    Create a new organization member.
     """
 
     service = OrganizationMemberService(db)
@@ -125,6 +125,9 @@ async def create_organization_member(
         name=data.name,
         email=data.email,
         phone=data.phone,
+        department=data.department,
+        designation=data.designation,
+        role=data.role,
         password=data.password,
     )
 
@@ -217,6 +220,35 @@ async def update_member_status(
         current_user.id,
         member_id,
         data.is_active,
+    )
+
+    return OrganizationMemberResponse.model_validate(
+        member
+    )
+# ============================================================
+# RESET MEMBER PASSWORD
+# ============================================================
+
+@router.put(
+    "/{member_id}/password",
+    response_model=OrganizationMemberResponse,
+)
+async def reset_organization_member_password(
+    member_id: UUID,
+    data: OrganizationMemberPasswordReset,
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Reset password for an organization member.
+    """
+
+    service = OrganizationMemberService(db)
+
+    member = await service.reset_member_password(
+        user_id=current_user.id,
+        member_id=member_id,
+        new_password=data.password,
     )
 
     return OrganizationMemberResponse.model_validate(

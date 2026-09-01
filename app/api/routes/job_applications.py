@@ -55,7 +55,7 @@ async def create_job_application(
         )
 
     # Check job is open
-    if job.status != "open":
+    if job.status != "active":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="This job is no longer accepting applications.",
