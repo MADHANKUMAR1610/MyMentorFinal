@@ -24,13 +24,14 @@ from app.services.job_application_service import (
 
 from app.services.organization_job_service import (
     OrganizationJobService,
+    
 )
 
 from app.schemas.organization_job import (
     OrganizationJobResponse,
     OrganizationJobStatusUpdate,
 )
-
+from fastapi import APIRouter
 
 router = APIRouter(
     prefix="/organizations/me",
@@ -420,4 +421,27 @@ async def update_my_job_status(
         current_user.id,
         job_id,
         data.status,
+    )
+# ============================================================
+# DUPLICATE JOB
+# ============================================================
+
+@router.post(
+    "/{job_id}/duplicate",
+)
+async def duplicate_job(
+    job_id: UUID,
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Duplicate an existing job
+    for the current organization.
+    """
+
+    service = OrganizationJobService(db)
+
+    return await service.duplicate_job(
+        user_id=current_user.id,
+        job_id=job_id,
     )

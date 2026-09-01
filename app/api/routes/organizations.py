@@ -15,6 +15,7 @@ from app.services.organization_dashboard_service import (
 )
 from app.schemas.organization_job import (
     OrganizationJobCreate,
+    OrganizationJobDraftCreate,
     OrganizationJobResponse,
     OrganizationJobUpdate,
 )
@@ -98,6 +99,23 @@ async def create_my_job(
         current_user.id,
         data,
     )
+@router.post(
+    "/me/jobs/draft",
+    response_model=OrganizationJobResponse,
+    status_code=201,
+)
+async def save_job_draft(
+    data: OrganizationJobDraftCreate,
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    service = OrganizationJobService(db)
+
+    return await service.save_draft(
+        current_user.id,
+        data,
+    )
+
 @router.get(
     "/me/jobs/{job_id}",
     response_model=OrganizationJobResponse,
