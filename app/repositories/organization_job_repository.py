@@ -328,7 +328,7 @@ class OrganizationJobRepository:
 
                 func.count(Job.id)
                 .filter(
-                    Job.status == "open"
+                    Job.status == "active"
                 )
                 .label("active"),
 
