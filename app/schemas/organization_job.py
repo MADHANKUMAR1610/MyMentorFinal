@@ -13,6 +13,7 @@ JobStatus = Literal[
     "draft",
     "active",
     "closed",
+    "paused",
 ]
 
 

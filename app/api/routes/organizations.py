@@ -9,7 +9,9 @@ from app.services.organization_service import OrganizationService
 from app.schemas.organization_dashboard import (
     OrganizationDashboardResponse,
 )
-
+from app.schemas.organization_job_summary import (
+    OrganizationJobSummaryResponse,
+)
 from app.services.organization_dashboard_service import (
     OrganizationDashboardService,
 )
@@ -102,7 +104,27 @@ async def save_job_draft(
         current_user.id,
         data,
     )
+# ============================================================
+# JOB SUMMARY
+# ============================================================
 
+@router.get(
+    "/me/jobs/summary",
+    response_model=OrganizationJobSummaryResponse,
+)
+async def get_my_job_summary(
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Get job statistics for the current user's organization.
+    """
+
+    service = OrganizationJobService(db)
+
+    return await service.get_job_summary(
+        current_user.id
+    )
 @router.get(
     "/me/jobs/{job_id}",
     response_model=OrganizationJobResponse,

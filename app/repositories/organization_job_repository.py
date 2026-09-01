@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.job import Job
@@ -307,3 +307,61 @@ class OrganizationJobRepository:
         await self.db.refresh(duplicated_job)
 
         return duplicated_job
+        # ============================================================
+    # GET JOB SUMMARY
+    # ============================================================
+
+    async def get_job_summary(
+        self,
+        company_id: UUID,
+    ) -> dict:
+
+        result = await self.db.execute(
+            select(
+                func.count(Job.id).label("total_jobs"),
+
+                func.count(Job.id)
+                .filter(
+                    Job.status == "draft"
+                )
+                .label("draft"),
+
+                func.count(Job.id)
+                .filter(
+                    Job.status == "open"
+                )
+                .label("active"),
+
+                func.count(Job.id)
+                .filter(
+                    Job.status == "paused"
+                )
+                .label("paused"),
+
+                func.count(Job.id)
+                .filter(
+                    Job.status == "closed"
+                )
+                .label("closed"),
+
+                func.count(Job.id)
+                .filter(
+                    Job.status == "filled"
+                )
+                .label("filled"),
+            )
+            .where(
+                Job.company_id == company_id
+            )
+        )
+
+        row = result.one()
+
+        return {
+            "total_jobs": row.total_jobs or 0,
+            "draft": row.draft or 0,
+            "active": row.active or 0,
+            "paused": row.paused or 0,
+            "closed": row.closed or 0,
+            "filled": row.filled or 0,
+        }
