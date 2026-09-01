@@ -57,7 +57,15 @@ class User(
         nullable=False,
         default="",
     )
+    department: Mapped[str | None] = mapped_column(
+        String(100),
+        nullable=True,
+    )
 
+    designation: Mapped[str | None] = mapped_column(
+        String(100),
+        nullable=True,
+    )
     role: Mapped[str] = mapped_column(
         String(30),
         nullable=False,
