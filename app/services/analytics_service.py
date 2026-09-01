@@ -1,11 +1,6 @@
 from uuid import UUID
 
-from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-
-from app.repositories.organization_repository import (
-    OrganizationRepository,
-)
 
 from app.repositories.organization_analytics_repository import (
     OrganizationAnalyticsRepository,
@@ -16,43 +11,18 @@ class OrganizationAnalyticsService:
 
     def __init__(self, db: AsyncSession):
 
-        self.organization_repository = (
-            OrganizationRepository(db)
-        )
-
         self.analytics_repository = (
             OrganizationAnalyticsRepository(db)
         )
 
     # ============================================================
-    # GET RECRUITMENT ANALYTICS
+    # 1. EXISTING RECRUITMENT ANALYTICS
     # ============================================================
 
     async def get_recruitment_analytics(
         self,
-        user_id: UUID,
+        company_id: UUID,
     ):
-
-        # --------------------------------------------------------
-        # Find organization of logged-in admin
-        # --------------------------------------------------------
-
-        company = await (
-            self.organization_repository
-            .get_by_admin_user_id(user_id)
-        )
-
-        if company is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Organization not found for this user.",
-            )
-
-        company_id = company.id
-
-        # --------------------------------------------------------
-        # USERS
-        # --------------------------------------------------------
 
         total_users = await (
             self.analytics_repository
@@ -64,10 +34,6 @@ class OrganizationAnalyticsService:
             .get_active_users(company_id)
         )
 
-        # --------------------------------------------------------
-        # JOBS
-        # --------------------------------------------------------
-
         total_jobs = await (
             self.analytics_repository
             .get_total_jobs(company_id)
@@ -78,10 +44,6 @@ class OrganizationAnalyticsService:
             .get_active_jobs(company_id)
         )
 
-        # --------------------------------------------------------
-        # APPLICATIONS
-        # --------------------------------------------------------
-
         total_applications = await (
             self.analytics_repository
             .get_total_applications(company_id)
@@ -89,20 +51,13 @@ class OrganizationAnalyticsService:
 
         application_statuses = await (
             self.analytics_repository
-            .get_applications_by_status(
-                company_id
-            )
+            .get_applications_by_status(company_id)
         )
 
         applications_by_status = {
             status_name: count
-            for status_name, count
-            in application_statuses
+            for status_name, count in application_statuses
         }
-
-        # --------------------------------------------------------
-        # INTERVIEWS
-        # --------------------------------------------------------
 
         total_interviews = await (
             self.analytics_repository
@@ -111,20 +66,13 @@ class OrganizationAnalyticsService:
 
         interview_statuses = await (
             self.analytics_repository
-            .get_interviews_by_status(
-                company_id
-            )
+            .get_interviews_by_status(company_id)
         )
 
         interviews_by_status = {
             status_name: count
-            for status_name, count
-            in interview_statuses
+            for status_name, count in interview_statuses
         }
-
-        # --------------------------------------------------------
-        # RETURN ANALYTICS
-        # --------------------------------------------------------
 
         return {
             "company_id": company_id,
@@ -149,303 +97,221 @@ class OrganizationAnalyticsService:
                 "by_status": interviews_by_status,
             },
         }
+
     # ============================================================
-    # APPLICATION TREND
+    # 2. APPLICATION TREND
     # ============================================================
 
     async def get_application_trend(
         self,
-        user_id: UUID,
+        company_id: UUID,
     ):
-        # --------------------------------------------------------
-        # Find organization of logged-in admin
-        # --------------------------------------------------------
-
-        company = await (
-            self.organization_repository
-            .get_by_admin_user_id(user_id)
-        )
-
-        if company is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Organization not found for this user.",
-            )
-
-        # --------------------------------------------------------
-        # Get application trend
-        # --------------------------------------------------------
 
         return await (
             self.analytics_repository
-            .get_application_trend(
-                company.id
-            )
+            .get_application_trend(company_id)
         )
+
     # ============================================================
-    # RECRUITMENT FUNNEL
+    # 3. RECRUITMENT FUNNEL
     # ============================================================
 
     async def get_recruitment_funnel(
         self,
-        user_id: UUID,
+        company_id: UUID,
     ):
-        # --------------------------------------------------------
-        # Find organization of logged-in admin
-        # --------------------------------------------------------
-
-        company = await (
-            self.organization_repository
-            .get_by_admin_user_id(user_id)
-        )
-
-        if company is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Organization not found for this user.",
-            )
-
-        # --------------------------------------------------------
-        # Get recruitment funnel
-        # --------------------------------------------------------
 
         return await (
             self.analytics_repository
-            .get_recruitment_funnel(
-                company.id
-            )
+            .get_recruitment_funnel(company_id)
         )
+
     # ============================================================
-    # INTERVIEW ANALYTICS
+    # 4. INTERVIEW ANALYTICS
     # ============================================================
 
     async def get_interview_analytics(
         self,
-        user_id: UUID,
+        company_id: UUID,
     ):
-        # --------------------------------------------------------
-        # Find organization of logged-in admin
-        # --------------------------------------------------------
-
-        company = await (
-            self.organization_repository
-            .get_by_admin_user_id(user_id)
-        )
-
-        if company is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Organization not found for this user.",
-            )
-
-        # --------------------------------------------------------
-        # Get interview analytics
-        # --------------------------------------------------------
 
         return await (
             self.analytics_repository
-            .get_interview_analytics(
-                company.id
-            )
+            .get_interview_analytics(company_id)
         )
+
     # ============================================================
-    # JOB-WISE RECRUITMENT ANALYTICS
+    # 5. JOB-WISE RECRUITMENT ANALYTICS
     # ============================================================
 
     async def get_job_wise_recruitment_analytics(
         self,
-        user_id: UUID,
+        company_id: UUID,
     ):
-        # --------------------------------------------------------
-        # Find organization of logged-in admin
-        # --------------------------------------------------------
-
-        company = await (
-            self.organization_repository
-            .get_by_admin_user_id(user_id)
-        )
-
-        if company is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Organization not found for this user.",
-            )
-
-        # --------------------------------------------------------
-        # Get job-wise recruitment analytics
-        # --------------------------------------------------------
 
         return await (
             self.analytics_repository
             .get_job_wise_recruitment_analytics(
-                company.id
+                company_id
             )
         )
+
     # ============================================================
-    # HIRING RATE ANALYTICS
+    # 6. HIRING RATE
     # ============================================================
 
     async def get_hiring_rate(
         self,
-        user_id: UUID,
+        company_id: UUID,
     ):
-        # --------------------------------------------------------
-        # Find organization of logged-in admin
-        # --------------------------------------------------------
-
-        company = await (
-            self.organization_repository
-            .get_by_admin_user_id(user_id)
-        )
-
-        if company is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Organization not found for this user.",
-            )
-
-        # --------------------------------------------------------
-        # Get hiring rate
-        # --------------------------------------------------------
 
         return await (
             self.analytics_repository
-            .get_hiring_rate(
-                company.id
-            )
+            .get_hiring_rate(company_id)
         )
+
     # ============================================================
-    # AVERAGE TIME TO HIRE
+    # 7. AVERAGE TIME TO HIRE
     # ============================================================
 
     async def get_average_time_to_hire(
         self,
-        user_id: UUID,
+        company_id: UUID,
     ):
-        # --------------------------------------------------------
-        # Find organization of logged-in admin
-        # --------------------------------------------------------
-
-        company = await (
-            self.organization_repository
-            .get_by_admin_user_id(user_id)
-        )
-
-        if company is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Organization not found for this user.",
-            )
-
-        # --------------------------------------------------------
-        # Get average time to hire
-        # --------------------------------------------------------
 
         return await (
             self.analytics_repository
             .get_average_time_to_hire(
-                company.id
+                company_id
             )
         )
+
     # ============================================================
-# RECRUITMENT DASHBOARD SUMMARY
-# ============================================================
+    # 8. COMPLETE RECRUITMENT DASHBOARD
+    # ============================================================
 
     async def get_recruitment_dashboard(
         self,
-        user_id: UUID,
+        company_id: UUID,
     ):
-    # --------------------------------------------------------
-        # Find organization
-    # --------------------------------------------------------
-
-        company = await (
-            self.organization_repository
-            .get_by_admin_user_id(user_id)
-        )
-
-        if company is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Organization not found for this user.",
-            )
 
         # --------------------------------------------------------
-        # Get summary metrics
+        # OVERVIEW
         # --------------------------------------------------------
 
-        total_jobs = await (
+        overview = await (
             self.analytics_repository
-            .get_total_jobs(company.id)
-        )
-
-        active_jobs = await (
-            self.analytics_repository
-            .get_active_jobs(company.id)
-        )
-
-        total_applications = await (
-            self.analytics_repository
-            .get_total_applications(company.id)
-        )
-
-        applications_by_status = await (
-            self.analytics_repository
-            .get_applications_by_status(company.id)
-        )
-
-        total_interviews = await (
-            self.analytics_repository
-            .get_total_interviews(company.id)
-        )
-
-        interviews_by_status = await (
-            self.analytics_repository
-            .get_interviews_by_status(company.id)
-        )
-
-        hiring_rate = await (
-            self.analytics_repository
-            .get_hiring_rate(company.id)
-        )
-
-        average_time_to_hire = await (
-            self.analytics_repository
-            .get_average_time_to_hire(company.id)
+            .get_overview(company_id)
         )
 
         # --------------------------------------------------------
-        # Return dashboard summary
+        # JOB PERFORMANCE
+        # --------------------------------------------------------
+
+        job_performance = await (
+            self.analytics_repository
+            .get_job_performance(company_id)
+        )
+
+        # --------------------------------------------------------
+        # RECRUITMENT FUNNEL
+        # --------------------------------------------------------
+
+        funnel = await (
+            self.analytics_repository
+            .get_recruitment_funnel(company_id)
+        )
+
+        # --------------------------------------------------------
+        # CANDIDATE QUALITY
+        # --------------------------------------------------------
+
+        candidate_quality = await (
+            self.analytics_repository
+            .get_candidate_quality(company_id)
+        )
+
+        # --------------------------------------------------------
+        # SOURCE ANALYTICS
+        # --------------------------------------------------------
+
+        sources = await (
+            self.analytics_repository
+            .get_source_analytics(company_id)
+        )
+
+        # --------------------------------------------------------
+        # TIME TO HIRE
+        # --------------------------------------------------------
+
+        time_to_hire = await (
+            self.analytics_repository
+            .get_time_to_hire(company_id)
+        )
+
+        # --------------------------------------------------------
+        # RECRUITER ANALYTICS
+        # --------------------------------------------------------
+
+        recruiters = await (
+            self.analytics_repository
+            .get_recruiter_analytics(company_id)
+        )
+
+        # --------------------------------------------------------
+        # SKILL GAP
+        # --------------------------------------------------------
+
+        skill_gap = await (
+            self.analytics_repository
+            .get_skill_gap(company_id)
+        )
+
+        # --------------------------------------------------------
+        # JOB HEALTH
+        # --------------------------------------------------------
+
+        job_health = await (
+            self.analytics_repository
+            .get_job_health(company_id)
+        )
+
+        # --------------------------------------------------------
+        # FINAL DASHBOARD RESPONSE
         # --------------------------------------------------------
 
         return {
-            "total_jobs": total_jobs,
-            "active_jobs": active_jobs,
-            "total_applications": total_applications,
-            "applications_by_status": [
-                {
-                    "status": status,
-                    "count": count,
-                }
-                for status, count in applications_by_status
-            ],
-            "total_interviews": total_interviews,
-            "interviews_by_status": [
-                {
-                    "status": status,
-                    "count": count,
-                }
-                for status, count in interviews_by_status
-            ],
-            "hired_applications": hiring_rate[
-                "hired_applications"
-            ],
-            "hiring_rate": hiring_rate[
-                "hiring_rate"
-            ],
-            "average_time_to_hire_days": (
-                average_time_to_hire[
-                    "average_time_to_hire_days"
-                ]
-            ),
+            "company_id": company_id,
+
+            "overview": overview,
+
+            "job_performance": job_performance,
+
+            "funnel": funnel,
+
+            "candidate_quality": candidate_quality,
+
+            "sources": sources,
+
+            "time_to_hire": time_to_hire,
+
+            "recruiters": recruiters,
+
+            "skill_gap": skill_gap,
+
+            "job_health": job_health,
         }
+
+    # ============================================================
+    # 9. JOB HEALTH
+    # ============================================================
+
+    async def get_job_health(
+        self,
+        company_id: UUID,
+    ):
+
+        return await (
+            self.analytics_repository
+            .get_job_health(company_id)
+        )

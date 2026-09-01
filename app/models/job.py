@@ -1,11 +1,22 @@
 import uuid
+from datetime import datetime
 
-from sqlalchemy import ForeignKey, Integer, String, Text, Numeric
+from sqlalchemy import (
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    Numeric,
+    DateTime,
+)
 from sqlalchemy.dialects.postgresql import UUID, ARRAY, JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database.database import Base
-from app.models.base import UUIDPrimaryKeyMixin, TimestampMixin
+from app.models.base import (
+    UUIDPrimaryKeyMixin,
+    TimestampMixin,
+)
 
 
 class Job(
@@ -65,6 +76,7 @@ class Job(
     department: Mapped[str | None] = mapped_column(
         String(150),
         nullable=True,
+        index=True,
     )
 
     location: Mapped[str | None] = mapped_column(
@@ -110,10 +122,31 @@ class Job(
     )
 
     # ============================================================
+    # RECRUITMENT ANALYTICS
+    # ============================================================
+
+    opened_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        index=True,
+    )
+
+    closed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
+    # Required skills for Skill Gap report
+    required_skills: Mapped[list[str]] = mapped_column(
+        ARRAY(String),
+        nullable=False,
+        default=list,
+    )
+
+    # ============================================================
     # OLD / COMPATIBILITY FIELDS
     # ============================================================
 
-    # Keep these for existing APIs/data compatibility.
     experience: Mapped[str | None] = mapped_column(
         String(100),
         nullable=True,
@@ -144,12 +177,6 @@ class Job(
         default=list,
     )
 
-    required_skills: Mapped[list[str]] = mapped_column(
-        ARRAY(String),
-        nullable=False,
-        default=list,
-    )
-
     preferred_skills: Mapped[list[str]] = mapped_column(
         ARRAY(String),
         nullable=False,
@@ -161,7 +188,6 @@ class Job(
         nullable=True,
     )
 
-    # Keep existing skills field for compatibility
     skills: Mapped[list[str]] = mapped_column(
         ARRAY(String),
         nullable=False,

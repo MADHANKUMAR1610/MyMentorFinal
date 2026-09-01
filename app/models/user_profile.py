@@ -2,7 +2,7 @@ import uuid
 from datetime import date
 
 from sqlalchemy import Date, Integer, String, Text, ForeignKey
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import UUID, ARRAY
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database.database import Base
@@ -93,7 +93,17 @@ class UserProfile(
         nullable=True,
     )
 
-        # =========================================================
+    # =========================================================
+    # SKILLS
+    # =========================================================
+
+    skills: Mapped[list[str]] = mapped_column(
+        ARRAY(String),
+        nullable=False,
+        default=list,
+    )
+
+    # =========================================================
     # WORK EXPERIENCES
     # =========================================================
 
