@@ -499,3 +499,35 @@ class OrganizationJobService:
                 posted_by=user_id,
             )
         )
+        # ============================================================
+    # GET JOB SUMMARY
+    # ============================================================
+
+    async def get_job_summary(
+        self,
+        user_id: UUID,
+    ):
+
+        # --------------------------------------------------------
+        # Find organization
+        # --------------------------------------------------------
+
+        company = await (
+            self.organization_repository
+            .get_by_admin_user_id(user_id)
+        )
+
+        if not company:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Organization not found for this user",
+            )
+
+        # --------------------------------------------------------
+        # Get job summary
+        # --------------------------------------------------------
+
+        return await (
+            self.job_repository
+            .get_job_summary(company.id)
+        )

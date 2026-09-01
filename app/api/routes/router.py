@@ -88,7 +88,9 @@ from app.api.routes.interview import (
 from app.api.routes.organization_analytics import (
     router as organization_analytics_router,
 )
-
+from app.api.routes.organization_dashboard import (
+    router as organization_dashboard_router,
+)
 # ============================================================
 # MAIN API ROUTER
 # ============================================================
@@ -295,4 +297,7 @@ api_router.include_router(
 )
 api_router.include_router(
     organization_analytics_router
+)
+api_router.include_router(
+    organization_dashboard_router
 )

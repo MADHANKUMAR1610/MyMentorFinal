@@ -12,7 +12,7 @@ class OrganizationMemberRepository:
         self.db = db
 
     # ============================================================
-    # GET ALL MEMBERS OF ORGANIZATION
+    # GET ALL MEMBERS
     # ============================================================
 
     async def get_members_by_company_id(
@@ -35,7 +35,9 @@ class OrganizationMemberRepository:
             .limit(limit)
         )
 
-        return list(result.scalars().all())
+        return list(
+            result.scalars().all()
+        )
 
     # ============================================================
     # GET SINGLE MEMBER
@@ -117,6 +119,9 @@ class OrganizationMemberRepository:
         name: str,
         email: str,
         phone: str | None,
+        department: str | None,
+        designation: str | None,
+        role: str,
         password_hash: str,
         company_id: UUID,
     ) -> User:
@@ -125,11 +130,15 @@ class OrganizationMemberRepository:
             name=name,
             email=email,
             phone=phone,
+
+            department=department,
+            designation=designation,
+
             password_hash=password_hash,
+
             company_id=company_id,
 
-            # Backend controls the role
-            role="organization_member",
+            role=role,
 
             is_active=True,
             is_verified=False,
@@ -166,4 +175,18 @@ class OrganizationMemberRepository:
     ) -> None:
 
         await self.db.delete(user)
+
         await self.db.commit()
+
+    async def update_password(
+        self,
+        user: User,
+        password_hash: str,
+    ) -> User:
+
+        user.password_hash = password_hash
+
+        await self.db.commit()
+        await self.db.refresh(user)
+
+        return user

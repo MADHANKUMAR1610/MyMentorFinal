@@ -55,7 +55,7 @@ class JobCreate(BaseModel):
     )
 
     status: str = Field(
-        default="open",
+        default="active",
         max_length=30,
     )
 

@@ -14,7 +14,11 @@ from app.repositories.organization_dashboard_repository import (
 
 class OrganizationDashboardService:
 
-    def __init__(self, db: AsyncSession):
+    def __init__(
+        self,
+        db: AsyncSession,
+    ):
+        self.db = db
 
         self.organization_repository = (
             OrganizationRepository(db)
@@ -24,44 +28,165 @@ class OrganizationDashboardService:
             OrganizationDashboardRepository(db)
         )
 
-    async def get_my_dashboard(
+    # ============================================================
+    # GET DASHBOARD
+    # ============================================================
+
+    async def get_dashboard(
         self,
         user_id: UUID,
     ):
 
-        # --------------------------------------------
-        # Find organization owned by logged-in admin
-        # --------------------------------------------
+        # --------------------------------------------------------
+        # Find organization
+        # --------------------------------------------------------
 
-        company = await (
+        organization = await (
             self.organization_repository
             .get_by_admin_user_id(user_id)
         )
 
-        if not company:
+        if organization is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Organization not found for this user",
+                detail="Organization not found for this user.",
             )
 
-        # --------------------------------------------
-        # Get dashboard statistics
-        # --------------------------------------------
+        company_id = organization.id
 
-        stats = await (
+        # --------------------------------------------------------
+        # Organization statistics
+        # --------------------------------------------------------
+
+        user_counts = await (
             self.dashboard_repository
-            .get_dashboard_data(company.id)
+            .get_user_counts(company_id)
         )
 
-        # --------------------------------------------
+        job_counts = await (
+            self.dashboard_repository
+            .get_job_counts(company_id)
+        )
+
+        # --------------------------------------------------------
+        # Application statistics
+        # --------------------------------------------------------
+
+        application_counts = await (
+            self.dashboard_repository
+            .get_application_counts(company_id)
+        )
+
+        # --------------------------------------------------------
+        # Active jobs
+        # --------------------------------------------------------
+
+        active_jobs = await (
+            self.dashboard_repository
+            .get_active_jobs(company_id)
+        )
+
+        active_job_data = []
+
+        for job in active_jobs:
+
+            application_counts_for_job = await (
+                self.dashboard_repository
+                .get_job_application_counts(job.id)
+            )
+
+            active_job_data.append(
+                {
+                    "id": job.id,
+                    "title": job.title,
+                    "department": getattr(
+                        job,
+                        "department",
+                        None,
+                    ),
+                    "location": job.location,
+
+                    "applications":
+                        application_counts_for_job[
+                            "applications"
+                        ],
+
+                    "matched":
+                        application_counts_for_job[
+                            "matched"
+                        ],
+
+                    "shortlisted":
+                        application_counts_for_job[
+                            "shortlisted"
+                        ],
+
+                    "interviews":
+                        application_counts_for_job[
+                            "interviews"
+                        ],
+
+                    "selected":
+                        application_counts_for_job[
+                            "selected"
+                        ],
+
+                    "status": job.status,
+                }
+            )
+
+        # --------------------------------------------------------
+        # Recruitment funnel
+        # --------------------------------------------------------
+
+        funnel = {
+            "applications":
+                application_counts[
+                    "total_applications"
+                ],
+
+            "matched":
+                application_counts[
+                    "matched_profiles"
+                ],
+
+            "screening":
+                0,
+
+            "shortlisted":
+                application_counts[
+                    "shortlisted"
+                ],
+
+            "interview":
+                application_counts[
+                    "interviews"
+                ],
+
+            "finalist":
+                0,
+
+            "selected":
+                application_counts[
+                    "selected"
+                ],
+        }
+
+        # --------------------------------------------------------
         # Final response
-        # --------------------------------------------
+        # --------------------------------------------------------
 
         return {
-            "organization_id": company.id,
-            "organization_name": company.name,
-            "industry": company.industry,
-            "logo": company.logo,
-            "verified": company.verified,
-            "stats": stats,
+            "organization": {
+                **user_counts,
+                **job_counts,
+            },
+
+            "candidates": application_counts,
+
+            "recruitment_funnel": funnel,
+
+            "active_jobs": active_job_data,
+
+            "recent_activity": [],
         }
