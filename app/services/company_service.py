@@ -274,7 +274,7 @@ class CompanyService:
 
             name=current_user.name,
 
-            role="company_admin",
+            role="organization_admin",
 
             company_id=company.id,
 

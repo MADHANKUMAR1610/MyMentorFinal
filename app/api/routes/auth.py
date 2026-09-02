@@ -119,7 +119,8 @@ async def admin_login(
     if user.role not in {
         "admin",
         "company_admin",
-    }:
+         "organization_admin",
+}:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin access required.",
@@ -139,7 +140,10 @@ async def admin_login(
     # COMPANY ADMIN MUST HAVE COMPANY
     # --------------------------------------------------------
 
-    if user.role == "company_admin":
+    if user.role in {
+        "company_admin",
+        "organization_admin",
+}:
 
         if user.company_id is None:
             raise HTTPException(
