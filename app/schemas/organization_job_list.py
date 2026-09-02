@@ -1,38 +1,32 @@
 from uuid import UUID
-
 from pydantic import BaseModel, ConfigDict
 
 
-class OrganizationJobListResponse(BaseModel):
-
-    model_config = ConfigDict(
-        from_attributes=True
-    )
-
+class OrganizationJobListItem(BaseModel):
     id: UUID
-
-    job_code: str | None = None
-
+    job_id: str
     title: str
-
     department: str | None = None
-
     location: str | None = None
+    employment_type: str | None = None
 
-    job_type: str | None = None
+    experience_min: int | None = None
+    experience_max: int | None = None
 
-    min_experience: int | None = None
-
-    max_experience: int | None = None
-
-    applications: int = 0
-
-    matched: int = 0
-
-    shortlisted: int = 0
-
-    interviews: int = 0
-
-    selected: int = 0
+    applications_count: int = 0
+    matched_count: int = 0
+    shortlisted_count: int = 0
+    interviews_count: int = 0
+    selected_count: int = 0
 
     status: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class OrganizationJobListResponse(BaseModel):
+    items: list[OrganizationJobListItem]
+    total: int
+    page: int
+    page_size: int
+    total_pages: int

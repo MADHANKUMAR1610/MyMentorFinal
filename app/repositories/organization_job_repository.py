@@ -12,15 +12,79 @@ class OrganizationJobRepository:
         self.db = db
 
     # ============================================================
-    # GET ALL JOBS
+    # GET JOBS - PAGINATED JOB LIST
     # ============================================================
 
     async def get_jobs_by_company_id(
         self,
         company_id: UUID,
+        page: int = 1,
+        page_size: int = 20,
+        search: str | None = None,
+        status: str | None = None,
+    ) -> tuple[list[Job], int]:
+
+        query = select(Job).where(
+            Job.company_id == company_id
+        )
+
+        count_query = select(
+            func.count(Job.id)
+        ).where(
+            Job.company_id == company_id
+        )
+
+        if search:
+            search_value = f"%{search}%"
+
+            query = query.where(
+                Job.title.ilike(search_value)
+            )
+
+            count_query = count_query.where(
+                Job.title.ilike(search_value)
+            )
+
+        if status:
+            query = query.where(
+                Job.status == status
+            )
+
+            count_query = count_query.where(
+                Job.status == status
+            )
+
+        total_result = await self.db.execute(
+            count_query
+        )
+
+        total = total_result.scalar() or 0
+
+        query = (
+            query
+            .order_by(Job.created_at.desc())
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+        )
+
+        result = await self.db.execute(query)
+
+        jobs = list(
+            result.scalars().all()
+        )
+
+        return jobs, total
+
+    # ============================================================
+    # GET ALL JOBS - FULL DETAILS
+    # ============================================================
+
+    async def get_all_jobs_by_company_id(
+        self,
+        company_id: UUID,
     ) -> list[Job]:
 
-        result = await self.db.execute(
+        query = (
             select(Job)
             .where(
                 Job.company_id == company_id
@@ -30,7 +94,11 @@ class OrganizationJobRepository:
             )
         )
 
-        return list(result.scalars().all())
+        result = await self.db.execute(query)
+
+        return list(
+            result.scalars().all()
+        )
 
     # ============================================================
     # GET JOB BY ID
@@ -152,7 +220,9 @@ class OrganizationJobRepository:
             ),
 
             # ATS
-            ats_configuration=data.get("ats_configuration"),
+            ats_configuration=data.get(
+                "ats_configuration"
+            ),
 
             # Existing fields
             skills=data.get(
@@ -297,7 +367,8 @@ class OrganizationJobRepository:
         await self.db.refresh(duplicated_job)
 
         return duplicated_job
-        # ============================================================
+
+    # ============================================================
     # GET JOB SUMMARY
     # ============================================================
 
@@ -308,7 +379,9 @@ class OrganizationJobRepository:
 
         result = await self.db.execute(
             select(
-                func.count(Job.id).label("total_jobs"),
+                func.count(Job.id).label(
+                    "total_jobs"
+                ),
 
                 func.count(Job.id)
                 .filter(

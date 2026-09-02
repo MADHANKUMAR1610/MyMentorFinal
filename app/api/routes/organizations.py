@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from uuid import UUID
 from app.database.database import get_db
@@ -25,7 +25,7 @@ from app.schemas.organization_ats_config import (
     OrganizationATSConfigUpdate,
     OrganizationATSConfigResponse,
 )
-
+from app.schemas.organization_job_list import OrganizationJobListResponse
 from app.services.organization_ats_config_service import (
     OrganizationATSConfigService,
 )
@@ -76,7 +76,7 @@ async def get_my_jobs(
 ):
     service = OrganizationJobService(db)
 
-    return await service.get_my_jobs(
+    return await service.get_my_jobs_full(
         current_user.id
     )
 @router.post(
@@ -164,7 +164,28 @@ async def update_my_job(
         job_id,
         data,
     )
-# ============================================================
+@router.get(
+    "/me/jobslist",
+    response_model=OrganizationJobListResponse,
+)
+async def get_my_jobs_list(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    search: str | None = Query(None),
+    status: str | None = Query(None),
+
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    service = OrganizationJobService(db)
+
+    return await service.get_my_jobs_list(
+        user_id=current_user.id,
+        page=page,
+        page_size=page_size,
+        search=search,
+        status=status,
+    )# ============================================================
 # ATS CONFIGURATION
 # ============================================================
 

@@ -1,3 +1,4 @@
+import math
 from uuid import UUID
 
 from fastapi import HTTPException, status
@@ -16,9 +17,11 @@ from app.schemas.organization_job import (
     OrganizationJobDraftCreate,
     OrganizationJobUpdate,
 )
+
 from app.repositories.organization_ats_config_repository import (
     OrganizationATSConfigRepository,
 )
+
 
 class OrganizationJobService:
 
@@ -31,15 +34,16 @@ class OrganizationJobService:
         self.job_repository = (
             OrganizationJobRepository(db)
         )
+
         self.ats_repository = (
             OrganizationATSConfigRepository(db)
         )
 
     # ============================================================
-    # GET MY JOBS
+    # GET MY JOBS - FULL DETAILS
     # ============================================================
 
-    async def get_my_jobs(
+    async def get_my_jobs_full(
         self,
         user_id: UUID,
     ):
@@ -60,12 +64,12 @@ class OrganizationJobService:
             )
 
         # --------------------------------------------------------
-        # Get organization's jobs
+        # Get organization's full jobs
         # --------------------------------------------------------
 
         return await (
             self.job_repository
-            .get_jobs_by_company_id(company.id)
+            .get_all_jobs_by_company_id(company.id)
         )
 
     # ============================================================
@@ -169,6 +173,7 @@ class OrganizationJobService:
         user_id: UUID,
         data: OrganizationJobDraftCreate,
     ):
+
         # --------------------------------------------------------
         # Find organization
         # --------------------------------------------------------
@@ -249,6 +254,7 @@ class OrganizationJobService:
             posted_by=user_id,
             data=job_data,
         )
+
     # ============================================================
     # GET JOB
     # ============================================================
@@ -534,7 +540,94 @@ class OrganizationJobService:
                 posted_by=user_id,
             )
         )
-        # ============================================================
+
+    # ============================================================
+    # GET MY JOBS - PAGINATED JOB LIST
+    # ============================================================
+
+    async def get_my_jobs_list(
+        self,
+        user_id: UUID,
+        page: int = 1,
+        page_size: int = 20,
+        search: str | None = None,
+        status: str | None = None,
+    ):
+
+        # --------------------------------------------------------
+        # Find organization
+        # --------------------------------------------------------
+
+        company = await (
+            self.organization_repository
+            .get_by_admin_user_id(user_id)
+        )
+
+        if not company:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Organization not found for this user",
+            )
+
+        # --------------------------------------------------------
+        # Get paginated jobs
+        # --------------------------------------------------------
+
+        jobs, total = await (
+            self.job_repository
+            .get_jobs_by_company_id(
+                company_id=company.id,
+                page=page,
+                page_size=page_size,
+                search=search,
+                status=status,
+            )
+        )
+
+        # --------------------------------------------------------
+        # Prepare Job List response
+        # --------------------------------------------------------
+
+        items = []
+
+        for job in jobs:
+
+            items.append(
+                {
+                    "id": job.id,
+                    "job_id": str(job.id),
+                    "title": job.title,
+                    "department": job.department,
+                    "location": job.location,
+                    "employment_type": job.job_type,
+                    "experience_min": job.min_experience,
+                    "experience_max": job.max_experience,
+                    "applications_count": job.applicants or 0,
+                    "matched_count": 0,
+                    "shortlisted_count": 0,
+                    "interviews_count": 0,
+                    "selected_count": 0,
+                    "status": job.status,
+                }
+            )
+
+        # --------------------------------------------------------
+        # Return paginated response
+        # --------------------------------------------------------
+
+        return {
+            "items": items,
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+            "total_pages": (
+                math.ceil(total / page_size)
+                if total
+                else 0
+            ),
+        }
+
+    # ============================================================
     # GET JOB SUMMARY
     # ============================================================
 
