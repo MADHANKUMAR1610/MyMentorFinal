@@ -1,24 +1,39 @@
+from typing import Optional
 from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.job import Job
+from app.models.audit_log import AuditLog
 from app.repositories.base import BaseRepository
 
 
-class JobRepository(BaseRepository[Job]):
-    """
-    Repository responsible for Job database operations.
+class AuditLogRepository(BaseRepository[AuditLog]):
 
-    Business rules belong in the service layer.
-    """
-
-    def __init__(self, session: AsyncSession):
-        super().__init__(Job, session)
+    def __init__(
+        self,
+        session: AsyncSession,
+    ):
+        super().__init__(
+            AuditLog,
+            session,
+        )
 
     # ============================================================
-    # GET BY COMPANY ID
+    # CREATE AUDIT LOG
+    # ============================================================
+
+    async def create_log(
+        self,
+        audit_log: AuditLog,
+    ) -> AuditLog:
+
+        return await self.create(
+            audit_log
+        )
+
+    # ============================================================
+    # GET ALL COMPANY AUDIT LOGS
     # ============================================================
 
     async def get_by_company_id(
@@ -27,15 +42,15 @@ class JobRepository(BaseRepository[Job]):
         *,
         skip: int = 0,
         limit: int = 100,
-    ) -> list[Job]:
+    ) -> list[AuditLog]:
 
         result = await self.session.execute(
-            select(Job)
+            select(AuditLog)
             .where(
-                Job.company_id == company_id
+                AuditLog.company_id == company_id
             )
             .order_by(
-                Job.created_at.desc()
+                AuditLog.created_at.desc()
             )
             .offset(skip)
             .limit(limit)
@@ -46,24 +61,73 @@ class JobRepository(BaseRepository[Job]):
         )
 
     # ============================================================
-    # GET BY POSTED USER
+    # GET AUDIT LOG BY ID
     # ============================================================
 
-    async def get_by_posted_by(
+    async def get_by_id(
         self,
+        audit_log_id: UUID,
+    ) -> Optional[AuditLog]:
+
+        result = await self.session.execute(
+            select(AuditLog)
+            .where(
+                AuditLog.id == audit_log_id
+            )
+        )
+
+        return result.scalar_one_or_none()
+
+    # ============================================================
+    # GET USER AUDIT LOGS
+    # ============================================================
+
+    async def get_user_audit_logs(
+        self,
+        company_id: UUID,
+        *,
+        skip: int = 0,
+        limit: int = 100,
+    ) -> list[AuditLog]:
+
+        result = await self.session.execute(
+            select(AuditLog)
+            .where(
+                AuditLog.company_id == company_id,
+                AuditLog.entity == "user",
+            )
+            .order_by(
+                AuditLog.created_at.desc()
+            )
+            .offset(skip)
+            .limit(limit)
+        )
+
+        return list(
+            result.scalars().all()
+        )
+
+    # ============================================================
+    # GET AUDIT LOGS BY USER
+    # ============================================================
+
+    async def get_by_user(
+        self,
+        company_id: UUID,
         user_id: UUID,
         *,
         skip: int = 0,
         limit: int = 100,
-    ) -> list[Job]:
+    ) -> list[AuditLog]:
 
         result = await self.session.execute(
-            select(Job)
+            select(AuditLog)
             .where(
-                Job.posted_by == user_id
+                AuditLog.company_id == company_id,
+                AuditLog.user_id == user_id,
             )
             .order_by(
-                Job.created_at.desc()
+                AuditLog.created_at.desc()
             )
             .offset(skip)
             .limit(limit)
@@ -74,107 +138,28 @@ class JobRepository(BaseRepository[Job]):
         )
 
     # ============================================================
-    # GET BY STATUS
+    # GET AUDIT LOGS BY ENTITY
     # ============================================================
 
-    async def get_by_status(
+    async def get_by_entity(
         self,
-        status: str,
+        company_id: UUID,
+        entity: str,
+        entity_id: UUID,
         *,
         skip: int = 0,
         limit: int = 100,
-    ) -> list[Job]:
+    ) -> list[AuditLog]:
 
         result = await self.session.execute(
-            select(Job)
+            select(AuditLog)
             .where(
-                Job.status == status
+                AuditLog.company_id == company_id,
+                AuditLog.entity == entity,
+                AuditLog.entity_id == entity_id,
             )
             .order_by(
-                Job.created_at.desc()
-            )
-            .offset(skip)
-            .limit(limit)
-        )
-
-        return list(
-            result.scalars().all()
-        )
-
-    # ============================================================
-    # GET OPEN / ACTIVE JOBS
-    # ============================================================
-
-    async def get_open_jobs(
-        self,
-        *,
-        skip: int = 0,
-        limit: int = 100,
-    ) -> list[Job]:
-
-        result = await self.session.execute(
-            select(Job)
-            .where(
-                Job.status == "active"
-            )
-            .order_by(
-                Job.created_at.desc()
-            )
-            .offset(skip)
-            .limit(limit)
-        )
-
-        return list(
-            result.scalars().all()
-        )
-
-    # ============================================================
-    # GET BY TITLE
-    # ============================================================
-
-    async def get_by_title(
-        self,
-        title: str,
-        *,
-        skip: int = 0,
-        limit: int = 100,
-    ) -> list[Job]:
-
-        result = await self.session.execute(
-            select(Job)
-            .where(
-                Job.title == title
-            )
-            .order_by(
-                Job.created_at.desc()
-            )
-            .offset(skip)
-            .limit(limit)
-        )
-
-        return list(
-            result.scalars().all()
-        )
-
-    # ============================================================
-    # GET BY LOCATION
-    # ============================================================
-
-    async def get_by_location(
-        self,
-        location: str,
-        *,
-        skip: int = 0,
-        limit: int = 100,
-    ) -> list[Job]:
-
-        result = await self.session.execute(
-            select(Job)
-            .where(
-                Job.location == location
-            )
-            .order_by(
-                Job.created_at.desc()
+                AuditLog.created_at.desc()
             )
             .offset(skip)
             .limit(limit)

@@ -6,6 +6,9 @@ from app.api.routes.profiles import router as profiles_router
 from app.api.routes.career_personas import (
     router as career_personas_router,
 )
+from app.api.routes.audit_logs import (
+    router as audit_logs_router,
+)
 from app.api.routes.mentors import router as mentors_router
 from app.api.routes.mentor_applications import (
     router as mentor_applications_router,
@@ -158,6 +161,9 @@ api_router.include_router(
 
 api_router.include_router(
     users_router
+)
+api_router.include_router(
+    audit_logs_router
 )
 
 

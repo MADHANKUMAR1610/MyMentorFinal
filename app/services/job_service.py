@@ -8,15 +8,30 @@ from app.repositories.job_repository import JobRepository
 
 class JobService:
 
-    def __init__(self, session: AsyncSession):
-        self.repository = JobRepository(session)
+    def __init__(
+        self,
+        session: AsyncSession,
+    ):
+        self.repository = JobRepository(
+            session
+        )
+
+    # ============================================================
+    # GET BY ID
+    # ============================================================
 
     async def get_by_id(
         self,
         job_id: UUID,
     ) -> Job | None:
 
-        return await self.repository.get_by_id(job_id)
+        return await self.repository.get_by_id(
+            job_id
+        )
+
+    # ============================================================
+    # GET BY COMPANY
+    # ============================================================
 
     async def get_by_company_id(
         self,
@@ -32,6 +47,10 @@ class JobService:
             limit=limit,
         )
 
+    # ============================================================
+    # GET BY POSTED USER
+    # ============================================================
+
     async def get_by_posted_by(
         self,
         user_id: UUID,
@@ -45,6 +64,10 @@ class JobService:
             skip=skip,
             limit=limit,
         )
+
+    # ============================================================
+    # GET BY STATUS
+    # ============================================================
 
     async def get_by_status(
         self,
@@ -60,6 +83,10 @@ class JobService:
             limit=limit,
         )
 
+    # ============================================================
+    # GET ACTIVE JOBS
+    # ============================================================
+
     async def get_open_jobs(
         self,
         *,
@@ -71,6 +98,10 @@ class JobService:
             skip=skip,
             limit=limit,
         )
+
+    # ============================================================
+    # GET BY TITLE
+    # ============================================================
 
     async def get_by_title(
         self,
@@ -86,6 +117,10 @@ class JobService:
             limit=limit,
         )
 
+    # ============================================================
+    # GET BY LOCATION
+    # ============================================================
+
     async def get_by_location(
         self,
         location: str,
@@ -100,23 +135,41 @@ class JobService:
             limit=limit,
         )
 
+    # ============================================================
+    # CREATE JOB
+    # ============================================================
+
     async def create_job(
         self,
         job: Job,
     ) -> Job:
 
-        return await self.repository.create(job)
+        return await self.repository.create(
+            job
+        )
+
+    # ============================================================
+    # UPDATE JOB
+    # ============================================================
 
     async def update_job(
         self,
         job: Job,
     ) -> Job:
 
-        return await self.repository.update(job)
+        return await self.repository.update(
+            job
+        )
+
+    # ============================================================
+    # DELETE JOB
+    # ============================================================
 
     async def delete_job(
         self,
         job: Job,
     ) -> None:
 
-        await self.repository.delete(job)
+        await self.repository.delete(
+            job
+        )

@@ -8,6 +8,7 @@ from sqlalchemy import (
     Text,
     Numeric,
     DateTime,
+    text,
 )
 from sqlalchemy.dialects.postgresql import UUID, ARRAY, JSONB
 from sqlalchemy.orm import Mapped, mapped_column
@@ -25,6 +26,21 @@ class Job(
     Base,
 ):
     __tablename__ = "jobs"
+
+    # ============================================================
+    # JOB CODE
+    # JOB-1001, JOB-1002, JOB-1003...
+    # ============================================================
+
+    job_code: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        unique=True,
+        index=True,
+        server_default=text(
+            "'JOB-' || nextval('public.job_code_seq')::text"
+        ),
+    )
 
     # ============================================================
     # ORGANIZATION
@@ -136,7 +152,6 @@ class Job(
         nullable=True,
     )
 
-    # Required skills for Skill Gap report
     required_skills: Mapped[list[str]] = mapped_column(
         ARRAY(String),
         nullable=False,

@@ -1,7 +1,13 @@
 from uuid import UUID
 
-from fastapi import HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import (
+    HTTPException,
+    status,
+)
+
+from sqlalchemy.ext.asyncio import (
+    AsyncSession,
+)
 
 from app.repositories.organization_repository import (
     OrganizationRepository,
@@ -11,7 +17,13 @@ from app.repositories.organization_member_repository import (
     OrganizationMemberRepository,
 )
 
-from app.core.security import hash_password
+from app.core.security import (
+    hash_password,
+)
+
+from app.services.audit_log_service import (
+    AuditLogService,
+)
 
 
 class OrganizationMemberService:
@@ -21,12 +33,18 @@ class OrganizationMemberService:
         db: AsyncSession,
     ):
 
+        self.db = db
+
         self.organization_repository = (
             OrganizationRepository(db)
         )
 
         self.member_repository = (
             OrganizationMemberRepository(db)
+        )
+
+        self.audit_service = (
+            AuditLogService(db)
         )
 
     # ============================================================
@@ -43,14 +61,19 @@ class OrganizationMemberService:
 
         organization = await (
             self.organization_repository
-            .get_by_admin_user_id(user_id)
+            .get_by_admin_user_id(
+                user_id
+            )
         )
 
         if organization is None:
 
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Organization not found for this user.",
+                detail=(
+                    "Organization not found "
+                    "for this user."
+                ),
             )
 
         return await (
@@ -74,14 +97,19 @@ class OrganizationMemberService:
 
         organization = await (
             self.organization_repository
-            .get_by_admin_user_id(user_id)
+            .get_by_admin_user_id(
+                user_id
+            )
         )
 
         if organization is None:
 
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Organization not found for this user.",
+                detail=(
+                    "Organization not found "
+                    "for this user."
+                ),
             )
 
         member = await (
@@ -96,7 +124,10 @@ class OrganizationMemberService:
 
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Organization member not found.",
+                detail=(
+                    "Organization member "
+                    "not found."
+                ),
             )
 
         return member
@@ -115,69 +146,87 @@ class OrganizationMemberService:
         designation: str | None,
         role: str,
         password: str,
+        performed_by_name: str | None = None,
     ):
 
         # --------------------------------------------------------
-        # Find organization
+        # FIND ORGANIZATION
         # --------------------------------------------------------
 
         organization = await (
             self.organization_repository
-            .get_by_admin_user_id(user_id)
+            .get_by_admin_user_id(
+                user_id
+            )
         )
 
         if organization is None:
 
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Organization not found for this user.",
+                detail=(
+                    "Organization not found "
+                    "for this user."
+                ),
             )
 
         # --------------------------------------------------------
-        # Check email already exists
+        # CHECK EMAIL
         # --------------------------------------------------------
 
         existing_email = await (
             self.member_repository
-            .get_user_by_email(email)
+            .get_user_by_email(
+                email
+            )
         )
 
         if existing_email is not None:
 
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail="A user with this email already exists.",
+                detail=(
+                    "A user with this email "
+                    "already exists."
+                ),
             )
 
         # --------------------------------------------------------
-        # Check phone already exists
+        # CHECK PHONE
         # --------------------------------------------------------
 
         if phone:
 
             existing_phone = await (
                 self.member_repository
-                .get_user_by_phone(phone)
+                .get_user_by_phone(
+                    phone
+                )
             )
 
             if existing_phone is not None:
 
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
-                    detail="A user with this phone number already exists.",
+                    detail=(
+                        "A user with this phone "
+                        "number already exists."
+                    ),
                 )
 
         # --------------------------------------------------------
-        # Hash password
+        # HASH PASSWORD
         # --------------------------------------------------------
 
-        password_hash = hash_password(password)
+        password_hash = hash_password(
+            password
+        )
 
         # --------------------------------------------------------
-        # Create user
+        # CREATE MEMBER
         # --------------------------------------------------------
 
-        return await (
+        member = await (
             self.member_repository
             .create_member(
                 name=name,
@@ -191,6 +240,24 @@ class OrganizationMemberService:
             )
         )
 
+        # --------------------------------------------------------
+        # USER CREATED AUDIT
+        # --------------------------------------------------------
+
+        await self.audit_service.log_user_created(
+            company_id=organization.id,
+            performed_by_user_id=user_id,
+            performed_by_name=(
+                performed_by_name
+                or "Organization Admin"
+            ),
+            created_user=member,
+        )
+
+        await self.db.commit()
+
+        return member
+
     # ============================================================
     # UPDATE MEMBER
     # ============================================================
@@ -200,6 +267,7 @@ class OrganizationMemberService:
         user_id: UUID,
         member_id: UUID,
         data: dict,
+        performed_by_name: str | None = None,
     ):
 
         member = await self.get_member(
@@ -207,63 +275,100 @@ class OrganizationMemberService:
             member_id,
         )
 
+        changed_fields = {}
+
         # --------------------------------------------------------
-        # Check email uniqueness
+        # EMAIL
         # --------------------------------------------------------
 
         if "email" in data:
 
             email = data["email"]
 
-            if email and email != member.email:
+            if (
+                email
+                and email != member.email
+            ):
 
                 existing = await (
                     self.member_repository
-                    .get_user_by_email(email)
+                    .get_user_by_email(
+                        email
+                    )
                 )
 
                 if (
                     existing is not None
-                    and existing.id != member.id
+                    and existing.id
+                    != member.id
                 ):
 
                     raise HTTPException(
                         status_code=status.HTTP_409_CONFLICT,
-                        detail="A user with this email already exists.",
+                        detail=(
+                            "A user with this "
+                            "email already exists."
+                        ),
                     )
 
+                changed_fields["email"] = email
+
         # --------------------------------------------------------
-        # Check phone uniqueness
+        # PHONE
         # --------------------------------------------------------
 
         if "phone" in data:
 
             phone = data["phone"]
 
-            if phone and phone != member.phone:
+            if (
+                phone
+                and phone != member.phone
+            ):
 
                 existing = await (
                     self.member_repository
-                    .get_user_by_phone(phone)
+                    .get_user_by_phone(
+                        phone
+                    )
                 )
 
                 if (
                     existing is not None
-                    and existing.id != member.id
+                    and existing.id
+                    != member.id
                 ):
 
                     raise HTTPException(
                         status_code=status.HTTP_409_CONFLICT,
-                        detail="A user with this phone number already exists.",
+                        detail=(
+                            "A user with this "
+                            "phone number "
+                            "already exists."
+                        ),
                     )
 
+                changed_fields["phone"] = phone
+
         # --------------------------------------------------------
-        # Update fields
+        # OTHER FIELDS
         # --------------------------------------------------------
 
         for field, value in data.items():
 
-            if value is not None:
+            if value is None:
+                continue
+
+            old_value = getattr(
+                member,
+                field,
+                None,
+            )
+
+            if old_value != value:
+
+                if field not in changed_fields:
+                    changed_fields[field] = value
 
                 setattr(
                     member,
@@ -271,10 +376,35 @@ class OrganizationMemberService:
                     value,
                 )
 
-        return await (
+        # --------------------------------------------------------
+        # UPDATE
+        # --------------------------------------------------------
+
+        updated_member = await (
             self.member_repository
             .update(member)
         )
+
+        # --------------------------------------------------------
+        # AUDIT
+        # --------------------------------------------------------
+
+        if changed_fields:
+
+            await self.audit_service.log_user_updated(
+                company_id=member.company_id,
+                performed_by_user_id=user_id,
+                performed_by_name=(
+                    performed_by_name
+                    or "Organization Admin"
+                ),
+                updated_user=updated_member,
+                changed_fields=changed_fields,
+            )
+
+            await self.db.commit()
+
+        return updated_member
 
     # ============================================================
     # REMOVE MEMBER
@@ -284,6 +414,7 @@ class OrganizationMemberService:
         self,
         user_id: UUID,
         member_id: UUID,
+        performed_by_name: str | None = None,
     ):
 
         member = await self.get_member(
@@ -291,10 +422,34 @@ class OrganizationMemberService:
             member_id,
         )
 
+        company_id = member.company_id
+
+        # --------------------------------------------------------
+        # AUDIT BEFORE DELETE
+        # --------------------------------------------------------
+
+        if company_id is not None:
+
+            await self.audit_service.log_user_deleted(
+                company_id=company_id,
+                performed_by_user_id=user_id,
+                performed_by_name=(
+                    performed_by_name
+                    or "Organization Admin"
+                ),
+                deleted_user_id=member.id,
+            )
+
+        # --------------------------------------------------------
+        # DELETE
+        # --------------------------------------------------------
+
         await (
             self.member_repository
             .delete(member)
         )
+
+        return None
 
     # ============================================================
     # UPDATE ACTIVE STATUS
@@ -305,6 +460,7 @@ class OrganizationMemberService:
         user_id: UUID,
         member_id: UUID,
         is_active: bool,
+        performed_by_name: str | None = None,
     ):
 
         member = await self.get_member(
@@ -312,28 +468,61 @@ class OrganizationMemberService:
             member_id,
         )
 
+        old_status = member.is_active
+
         member.is_active = is_active
 
-        return await (
+        updated_member = await (
             self.member_repository
             .update(member)
         )
+
+        if old_status != is_active:
+
+            await self.audit_service.log_user_updated(
+                company_id=member.company_id,
+                performed_by_user_id=user_id,
+                performed_by_name=(
+                    performed_by_name
+                    or "Organization Admin"
+                ),
+                updated_user=updated_member,
+                changed_fields={
+                    "is_active": is_active
+                },
+            )
+
+            await self.db.commit()
+
+        return updated_member
+
+    # ============================================================
+    # RESET MEMBER PASSWORD
+    # ============================================================
 
     async def reset_member_password(
         self,
         user_id: UUID,
         member_id: UUID,
         new_password: str,
+        performed_by_name: str | None = None,
     ):
+
         company = await (
             self.organization_repository
-            .get_by_admin_user_id(user_id)
+            .get_by_admin_user_id(
+                user_id
+            )
         )
 
         if not company:
+
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Organization not found for this user",
+                detail=(
+                    "Organization not found "
+                    "for this user."
+                ),
             )
 
         member = await (
@@ -345,24 +534,62 @@ class OrganizationMemberService:
         )
 
         if not member:
+
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Organization member not found",
+                detail=(
+                    "Organization member "
+                    "not found."
+                ),
             )
 
-        # Prevent admin from resetting their own password
+        # --------------------------------------------------------
+        # PREVENT SELF RESET
+        # --------------------------------------------------------
+
         if member.id == user_id:
+
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="You cannot reset your own password using this API",
+                detail=(
+                    "You cannot reset your own "
+                    "password using this API"
+                ),
             )
 
-        password_hash = hash_password(new_password)
+        # --------------------------------------------------------
+        # PASSWORD HASH
+        # --------------------------------------------------------
 
-        return await (
+        password_hash = hash_password(
+            new_password
+        )
+
+        # --------------------------------------------------------
+        # UPDATE PASSWORD
+        # --------------------------------------------------------
+
+        updated_member = await (
             self.member_repository
             .update_password(
                 member,
                 password_hash,
             )
         )
+
+        # --------------------------------------------------------
+        # PASSWORD RESET REQUESTED AUDIT
+        # --------------------------------------------------------
+
+        await self.audit_service.log_password_reset_requested(
+            member,
+            performed_by_user_id=user_id,
+            performed_by_name=(
+                performed_by_name
+                or "Organization Admin"
+            ),
+        )
+
+        await self.db.commit()
+
+        return updated_member
