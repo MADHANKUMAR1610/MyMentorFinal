@@ -2,6 +2,7 @@ import math
 from uuid import UUID
 
 from fastapi import HTTPException, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.repositories.organization_repository import (
@@ -11,7 +12,18 @@ from app.repositories.organization_repository import (
 from app.repositories.organization_job_repository import (
     OrganizationJobRepository,
 )
+from app.repositories.job_application_repository import (
+    JobApplicationRepository,
+)
 
+from app.repositories.interview_repository import (
+    InterviewRepository,
+)
+
+from app.models.user import User
+from app.models.user_profile import UserProfile
+from app.models.job_application import JobApplication
+from app.models.interview import Interview
 from app.schemas.organization_job import (
     OrganizationJobCreate,
     OrganizationJobDraftCreate,
@@ -26,11 +38,11 @@ from app.repositories.organization_ats_config_repository import (
 class OrganizationJobService:
 
     def __init__(self, db: AsyncSession):
-
+        self.db = db
         self.organization_repository = (
             OrganizationRepository(db)
         )
-
+      
         self.job_repository = (
             OrganizationJobRepository(db)
         )
@@ -38,7 +50,13 @@ class OrganizationJobService:
         self.ats_repository = (
             OrganizationATSConfigRepository(db)
         )
+        self.application_repository = (
+             JobApplicationRepository(db)
+        )
 
+        self.interview_repository = (
+             InterviewRepository(db)
+        )
     # ============================================================
     # GET MY JOBS - FULL DETAILS
     # ============================================================
@@ -626,8 +644,518 @@ class OrganizationJobService:
                 else 0
             ),
         }
-
     # ============================================================
+    # GET COMPLETE JOB DETAILS
+    # ============================================================
+
+    async def get_job_details(
+        self,
+        user_id: UUID,
+        job_id: UUID,
+    ):
+
+        # --------------------------------------------------------
+        # Find organization
+        # --------------------------------------------------------
+
+        company = await self.organization_repository.get_by_admin_user_id(user_id)
+
+        if company is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Organization not found for this user.",
+            )
+
+        # --------------------------------------------------------
+        # Get job
+        # --------------------------------------------------------
+
+        job = await self.job_repository.get_by_id(
+            job_id=job_id,
+            company_id=company.id,
+        )
+
+        if job is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Job not found.",
+            )
+
+        # --------------------------------------------------------
+        # Get applications
+        # --------------------------------------------------------
+
+        applications = await self.application_repository.get_by_organization_job(
+            job_id=job.id,
+            company_id=company.id,
+            skip=0,
+            limit=1000,
+        )
+
+        # --------------------------------------------------------
+        # Convert applications
+        # --------------------------------------------------------
+
+        application_items = []
+
+        for application in applications:
+
+            recruiter_name = None
+
+            if application.recruiter_id:
+
+                recruiter = await self.db.get(
+                    User,
+                    application.recruiter_id,
+                )
+
+                if recruiter:
+                    recruiter_name = recruiter.name
+
+            application_items.append(
+                {
+                    "application_id": application.id,
+
+                    "candidate_id":
+                        application.applicant_user_id,
+
+                    "candidate_name":
+                        application.name,
+
+                    "applied_at":
+                        application.created_at,
+
+                    "ats_score":
+                        application.ats_score,
+
+                    "match_score":
+                        application.match_score,
+
+                    "experience":
+                        application.experience,
+
+                    "stage":
+                        application.status,
+
+                    "recruiter":
+                        recruiter_name,
+                }
+            )
+
+        # --------------------------------------------------------
+        # Overview counts
+        # --------------------------------------------------------
+
+        total_applications = len(applications)
+
+        matched = sum(
+            1
+            for application in applications
+            if application.match_score is not None
+            and application.match_score >= 70
+        )
+
+        shortlisted = sum(
+            1
+            for application in applications
+            if application.status == "shortlisted"
+        )
+
+        interview_stages = {
+            "interview",
+            "technical_round",
+            "hr_round",
+            "finalist",
+        }
+
+        interviews = sum(
+            1
+            for application in applications
+            if application.status in interview_stages
+        )
+
+        finalists = sum(
+            1
+            for application in applications
+            if application.status == "finalist"
+        )
+
+        selected = sum(
+            1
+            for application in applications
+            if application.status == "selected"
+        )
+
+        ats_scores = [
+            application.ats_score
+            for application in applications
+            if application.ats_score is not None
+        ]
+
+        match_scores = [
+            application.match_score
+            for application in applications
+            if application.match_score is not None
+        ]
+
+        avg_ats_score = (
+            round(
+                sum(ats_scores) / len(ats_scores),
+                2,
+            )
+            if ats_scores
+            else 0
+        )
+
+        avg_match_score = (
+            round(
+                sum(match_scores) / len(match_scores),
+                2,
+            )
+            if match_scores
+            else 0
+        )
+
+        # --------------------------------------------------------
+        # Pipeline
+        # --------------------------------------------------------
+
+        pipeline = {
+            "applied": [],
+            "screening": [],
+            "shortlisted": [],
+            "interview": [],
+            "technical_round": [],
+            "hr_round": [],
+            "finalist": [],
+            "selected": [],
+            "rejected": [],
+        }
+
+        for item in application_items:
+
+            stage = item["stage"]
+
+            if stage == "submitted":
+                pipeline["applied"].append(item)
+
+            elif stage in pipeline:
+                pipeline[stage].append(item)
+
+        # --------------------------------------------------------
+        # Matched profiles
+        #
+        # Current database does not have a separate
+        # matched-profile table.
+        #
+        # Therefore derive matched profiles from
+        # applications having match_score >= 70.
+        # --------------------------------------------------------
+
+        matched_profiles = []
+
+        required_skills = [
+            skill.lower()
+            for skill in (
+                job.required_skills or []
+            )
+        ]
+
+        for application in applications:
+
+            if (
+                application.match_score is None
+                or application.match_score < 70
+            ):
+                continue
+
+            designation = None
+            candidate_skills = []
+
+            if application.applicant_user_id:
+
+                user = await self.db.get(
+                    User,
+                    application.applicant_user_id,
+                )
+
+                if user:
+
+                    designation = user.designation
+
+                    profile_result = await self.db.execute(
+                        select(UserProfile).where(
+                            UserProfile.user_id
+                            == application.applicant_user_id
+                        )
+                    )
+
+                    profile = (
+                        profile_result
+                        .scalar_one_or_none()
+                    )
+
+                    if profile:
+                        candidate_skills = [
+                            skill.lower()
+                            for skill in (
+                                profile.skills or []
+                            )
+                        ]
+
+            relevant_skills = [
+                skill
+                for skill in candidate_skills
+                if skill in required_skills
+            ]
+
+            missing_skills = [
+                skill
+                for skill in required_skills
+                if skill not in candidate_skills
+            ]
+
+            matched_profiles.append(
+                {
+                    "candidate_id":
+                        application.applicant_user_id,
+
+                    "candidate_name":
+                        application.name,
+
+                    "designation":
+                        designation,
+
+                    "ats_score":
+                        application.ats_score,
+
+                    "match_score":
+                        application.match_score,
+
+                    "relevant_skills":
+                        relevant_skills,
+
+                    "missing_skills":
+                        missing_skills,
+
+                    "match_reason":
+                        (
+                            f"{len(relevant_skills)} relevant "
+                            f"required skill(s) matched"
+                        ),
+                }
+            )
+
+        # --------------------------------------------------------
+        # Interviews
+        # --------------------------------------------------------
+
+        interview_result = await self.db.execute(
+            select(
+                Interview,
+                JobApplication,
+                User,
+            )
+            .join(
+                JobApplication,
+                Interview.application_id
+                == JobApplication.id,
+            )
+            .outerjoin(
+                User,
+                Interview.interviewer_id
+                == User.id,
+            )
+            .where(
+                Interview.company_id == company.id,
+                JobApplication.job_id == job.id,
+            )
+            .order_by(
+                Interview.scheduled_at.desc()
+            )
+        )
+
+        interview_rows = (
+            interview_result.all()
+        )
+
+        interviews_data = []
+
+        for interview, application, interviewer in (
+            interview_rows
+        ):
+
+            interviews_data.append(
+                {
+                    "interview_id":
+                        interview.id,
+
+                    "candidate_id":
+                        application.applicant_user_id,
+
+                    "candidate_name":
+                        application.name,
+
+                    "type":
+                        interview.interview_type,
+
+                    "interviewer":
+                        interviewer.name
+                        if interviewer
+                        else None,
+
+                    "scheduled_at":
+                        interview.scheduled_at,
+
+                    "status":
+                        interview.status,
+                }
+            )
+
+        # --------------------------------------------------------
+        # Analytics
+        # --------------------------------------------------------
+
+        match_rate = (
+            round(
+                matched
+                / total_applications
+                * 100,
+                2,
+            )
+            if total_applications
+            else 0
+        )
+
+        conversion = (
+            round(
+                selected
+                / total_applications
+                * 100,
+                2,
+            )
+            if total_applications
+            else 0
+        )
+
+        # --------------------------------------------------------
+        # ATS weights
+        # --------------------------------------------------------
+
+        ats_configuration = (
+            job.ats_configuration or {}
+        )
+
+        ats_weights = {
+            "skills":
+                ats_configuration.get(
+                    "skills",
+                    30,
+                ),
+
+            "experience":
+                ats_configuration.get(
+                    "experience",
+                    20,
+                ),
+
+            "education":
+                ats_configuration.get(
+                    "education",
+                    15,
+                ),
+
+            "role_relevance":
+                ats_configuration.get(
+                    "role_relevance",
+                    20,
+                ),
+
+            "screening_questions":
+                ats_configuration.get(
+                    "screening_questions",
+                    10,
+                ),
+
+            "certifications":
+                ats_configuration.get(
+                    "certifications",
+                    5,
+                ),
+        }
+
+        # --------------------------------------------------------
+        # Final response
+        # --------------------------------------------------------
+
+        return {
+            "job": {
+                "id": job.id,
+                "job_id": str(job.id),
+                "title": job.title,
+                "department": job.department,
+                "location": job.location,
+                "work_mode": job.work_mode,
+                "employment_type": job.job_type,
+                "experience_min": job.min_experience,
+                "experience_max": job.max_experience,
+                "openings": job.openings,
+                "status": job.status,
+                "created_at": job.created_at,
+                "summary": job.summary,
+                "responsibilities":
+                    job.responsibilities or [],
+                "required_skills":
+                    job.required_skills or [],
+                "preferred_skills":
+                    job.preferred_skills or [],
+                "ats_weights":
+                    ats_weights,
+            },
+
+            "overview": {
+                "applications":
+                    total_applications,
+                "matched":
+                    matched,
+                "shortlisted":
+                    shortlisted,
+                "interviews":
+                    interviews,
+                "finalists":
+                    finalists,
+                "selected":
+                    selected,
+                "avg_ats_score":
+                    avg_ats_score,
+            },
+
+            "applications":
+                application_items,
+
+            "matched_profiles":
+                matched_profiles,
+
+            "pipeline":
+                pipeline,
+
+            "interviews":
+                interviews_data,
+
+            "analytics": {
+                "avg_ats_score":
+                    avg_ats_score,
+
+                "avg_match_score":
+                    avg_match_score,
+
+                "match_rate":
+                    match_rate,
+
+                "conversion":
+                    conversion,
+            },
+        }    # ============================================================
     # GET JOB SUMMARY
     # ============================================================
 

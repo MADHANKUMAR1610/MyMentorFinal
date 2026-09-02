@@ -1,9 +1,20 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from uuid import UUID
 from app.database.database import get_db
 from app.api.dependencies import get_current_user
-
+from app.models.job import Job
+from app.repositories.organization_repository import OrganizationRepository
+from app.schemas.job_application import (
+    JobApplicationStatusUpdate,
+    JobApplicationResponse,
+)
+from app.schemas.organization_job_details import (
+    OrganizationJobDetailsResponse,
+)
+from app.services.job_application_service import (
+    JobApplicationService,
+)
 from app.schemas.organization import OrganizationResponse, OrganizationUpdate
 from app.services.organization_service import OrganizationService
 from app.schemas.organization_dashboard import (
@@ -202,8 +213,116 @@ async def get_my_ats_config(
     return await service.get_config(
         current_user.id
     )
+# ============================================================
+# MOVE APPLICATION
+# ============================================================
 
+@router.put(
+    "/me/jobs/{job_id}/applications/{application_id}/move",
+    response_model=JobApplicationResponse,
+)
+async def move_job_application(
+    job_id: UUID,
+    application_id: UUID,
+    data: JobApplicationStatusUpdate,
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Move a candidate to another recruitment stage.
+    """
 
+    # --------------------------------------------------------
+    # Find organization
+    # --------------------------------------------------------
+
+    organization_repository = OrganizationRepository(
+        db
+    )
+
+    organization = (
+        await organization_repository
+        .get_by_admin_user_id(
+            current_user.id
+        )
+    )
+
+    if organization is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Organization not found for this user.",
+        )
+
+    # --------------------------------------------------------
+    # Verify job belongs to organization
+    # --------------------------------------------------------
+
+    job = await db.get(Job, job_id)
+
+    if job is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Job not found.",
+        )
+
+    if job.company_id != organization.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have access to this job.",
+        )
+
+    # --------------------------------------------------------
+    # Update application
+    # --------------------------------------------------------
+
+    service = JobApplicationService(db)
+
+    application = (
+        await service.update_organization_application_status(
+            application_id=application_id,
+            company_id=organization.id,
+            new_status=data.status,
+        )
+    )
+
+    if application is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Job application not found.",
+        )
+
+    # --------------------------------------------------------
+    # Make sure application belongs to this job
+    # --------------------------------------------------------
+
+    if application.job_id != job_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Application does not belong to this job.",
+        )
+
+    return JobApplicationResponse.model_validate(
+        application
+    )
+# ============================================================
+# COMPLETE JOB DETAILS
+# ============================================================
+
+@router.get(
+    "/me/jobs/{job_id}/details",
+    response_model=OrganizationJobDetailsResponse,
+)
+async def get_job_details(
+    job_id: UUID,
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    service = OrganizationJobService(db)
+
+    return await service.get_job_details(
+        user_id=current_user.id,
+        job_id=job_id,
+    )
 @router.put(
     "/me/ats-config",
     response_model=OrganizationATSConfigResponse,

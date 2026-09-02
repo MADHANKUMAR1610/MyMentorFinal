@@ -151,7 +151,21 @@ class JobApplicationService:
         await self.repository.delete(
             application
         )
+    async def update_organization_application_status(
+        self,
+        application_id: UUID,
+        company_id: UUID,
+        new_status: str,
+    ) -> JobApplication | None:
 
+        return await (
+        self.repository
+        .update_organization_application_status(
+            application_id=application_id,
+            company_id=company_id,
+            new_status=new_status,
+        )
+        )
     # ============================================================
     # ORGANIZATION - GET ALL APPLICATIONS
     # ============================================================

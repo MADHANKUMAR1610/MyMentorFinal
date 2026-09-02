@@ -350,6 +350,30 @@ class JobApplicationRepository(
 
         return stats
 
+    async def update_organization_application_status(
+        self,
+        application_id: UUID,
+        company_id: UUID,
+        new_status: str,
+    ) -> JobApplication | None:
+        application = (
+            await self.get_organization_application(
+                application_id=application_id,
+                company_id=company_id,
+            )
+        )
+
+        if application is None:
+            return None
+
+        application.status = new_status
+
+        await self.session.commit()
+
+        await self.session.refresh(application)
+
+        return application
+
     async def get_status_counts_by_company_id(
         self,
         company_id: UUID,

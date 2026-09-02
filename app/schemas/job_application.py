@@ -66,11 +66,15 @@ class JobApplicationUpdate(BaseModel):
         max_length=30,
     )
 class JobApplicationStatusUpdate(BaseModel):
+
     status: Literal[
         "submitted",
-        "reviewing",
+        "screening",
         "shortlisted",
         "interview",
+        "technical_round",
+        "hr_round",
+        "finalist",
         "selected",
         "rejected",
     ]
