@@ -11,10 +11,33 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.dependencies import get_current_user
 from app.database.database import get_db
 from app.models.user import User
-from app.schemas.auth import LoginRequest, TokenResponse
-from app.schemas.user import UserCreate, UserResponse
-from app.services.auth_service import AuthService
-from app.services.google_auth_service import GoogleAuthService
+
+from app.schemas.auth import (
+    LoginRequest,
+    TokenResponse,
+    PasswordResetRequest,
+)
+
+from app.schemas.user import (
+    UserCreate,
+    UserResponse,
+)
+
+from app.services.auth_service import (
+    AuthService,
+)
+
+from app.services.google_auth_service import (
+    GoogleAuthService,
+)
+
+from app.services.audit_log_service import (
+    AuditLogService,
+)
+
+from app.repositories.user_repository import (
+    UserRepository,
+)
 
 
 router = APIRouter(
@@ -34,14 +57,23 @@ router = APIRouter(
 )
 async def register(
     data: UserCreate,
-    session: AsyncSession = Depends(get_db),
+    session: AsyncSession = Depends(
+        get_db
+    ),
 ):
-    service = AuthService(session)
+
+    service = AuthService(
+        session
+    )
 
     try:
-        user = await service.register(data)
+
+        user = await service.register(
+            data
+        )
 
     except ValueError as exc:
+
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=str(exc),
@@ -52,7 +84,6 @@ async def register(
 
 # ============================================================
 # NORMAL LOGIN
-# STUDENT / NORMAL USER
 # ============================================================
 
 @router.post(
@@ -61,9 +92,14 @@ async def register(
 )
 async def login(
     data: LoginRequest,
-    session: AsyncSession = Depends(get_db),
+    session: AsyncSession = Depends(
+        get_db
+    ),
 ):
-    service = AuthService(session)
+
+    service = AuthService(
+        session
+    )
 
     user = await service.authenticate(
         email=data.email,
@@ -71,12 +107,24 @@ async def login(
     )
 
     if user is None:
+
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password.",
         )
 
-    access_token = service.create_token(user)
+    if not user.is_active:
+
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User account is inactive.",
+        )
+
+    access_token = (
+        service.create_token(
+            user
+        )
+    )
 
     return TokenResponse(
         access_token=access_token,
@@ -95,9 +143,14 @@ async def login(
 )
 async def admin_login(
     data: LoginRequest,
-    session: AsyncSession = Depends(get_db),
+    session: AsyncSession = Depends(
+        get_db
+    ),
 ):
-    service = AuthService(session)
+
+    service = AuthService(
+        session
+    )
 
     user = await service.authenticate(
         email=data.email,
@@ -105,57 +158,51 @@ async def admin_login(
     )
 
     if user is None:
+
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password.",
         )
 
-    # --------------------------------------------------------
-    # SYSTEM ADMIN
-    # OR
-    # COMPANY ADMIN
-    # --------------------------------------------------------
-
     if user.role not in {
         "admin",
         "company_admin",
-         "organization_admin",
-}:
+        "organization_admin",
+    }:
+
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin access required.",
         )
 
-    # --------------------------------------------------------
-    # ACTIVE CHECK
-    # --------------------------------------------------------
-
     if not user.is_active:
+
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin account is inactive.",
         )
 
-    # --------------------------------------------------------
-    # COMPANY ADMIN MUST HAVE COMPANY
-    # --------------------------------------------------------
+    if (
+        user.role in {
+            "company_admin",
+            "organization_admin",
+        }
+        and user.company_id is None
+    ):
 
-    if user.role in {
-        "company_admin",
-        "organization_admin",
-}:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                "Admin is not linked "
+                "to a company."
+            ),
+        )
 
-        if user.company_id is None:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Company admin is not linked to a company.",
-            )
-
-    # --------------------------------------------------------
-    # CREATE JWT
-    # --------------------------------------------------------
-
-    access_token = service.create_token(user)
+    access_token = (
+        service.create_token(
+            user
+        )
+    )
 
     return TokenResponse(
         access_token=access_token,
@@ -164,39 +211,136 @@ async def admin_login(
 
 
 # ============================================================
+# LOGOUT
+# ============================================================
+
+@router.post(
+    "/logout",
+)
+async def logout(
+    current_user: User = Depends(
+        get_current_user
+    ),
+    session: AsyncSession = Depends(
+        get_db
+    ),
+):
+
+    audit_service = AuditLogService(
+        session
+    )
+
+    if current_user.company_id is not None:
+
+        await audit_service.log_logout(
+            current_user
+        )
+
+        await session.commit()
+
+    return {
+        "message": "Logout successful."
+    }
+
+
+# ============================================================
+# PASSWORD RESET REQUEST
+# ============================================================
+
+@router.post(
+    "/password-reset/request",
+)
+async def request_password_reset(
+    data: PasswordResetRequest,
+    session: AsyncSession = Depends(
+        get_db
+    ),
+):
+
+    repository = UserRepository(
+        session
+    )
+
+    user = await repository.get_by_email(
+        data.email
+    )
+
+    # --------------------------------------------------------
+    # SECURITY:
+    # Do not reveal whether the email exists.
+    # --------------------------------------------------------
+
+    if user is not None:
+
+        audit_service = AuditLogService(
+            session
+        )
+
+        if user.company_id is not None:
+
+            await audit_service.log_password_reset_requested(
+                user
+            )
+
+            await session.commit()
+
+    return {
+        "message": (
+            "If an account exists with this email, "
+            "a password reset request has been recorded."
+        )
+    }
+
+
+# ============================================================
 # CURRENT USER
 # ============================================================
 
-@router.get("/me")
+@router.get(
+    "/me"
+)
 async def get_me(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(
+        get_current_user
+    ),
 ):
-    return UserResponse.model_validate(current_user)
+
+    return UserResponse.model_validate(
+        current_user
+    )
 
 
 # ============================================================
 # GOOGLE LOGIN
 # ============================================================
 
-@router.get("/google")
+@router.get(
+    "/google"
+)
 async def google_login(
     frontend_url: str = Query(...),
 ):
+
     allowed_frontends = {
         "http://localhost:3000",
         "https://careercampus-bd89.onrender.com",
     }
 
     if frontend_url not in allowed_frontends:
+
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid frontend URL.",
         )
 
-    service = GoogleAuthService(None)
+    service = GoogleAuthService(
+        None
+    )
 
-    google_url = service.get_authorization_url(
-        state=frontend_url
+    google_url = (
+        service.get_authorization_url(
+            state=frontend_url
+        )
     )
 
     return RedirectResponse(
@@ -209,18 +353,27 @@ async def google_login(
 # GOOGLE CALLBACK
 # ============================================================
 
-@router.get("/google/callback")
+@router.get(
+    "/google/callback"
+)
 async def google_callback(
     code: str,
     state: str,
-    session: AsyncSession = Depends(get_db),
+    session: AsyncSession = Depends(
+        get_db
+    ),
 ):
-    service = GoogleAuthService(session)
+
+    service = GoogleAuthService(
+        session
+    )
 
     try:
 
-        user, jwt_token = await service.authenticate_with_code(
-            code
+        user, jwt_token = (
+            await service.authenticate_with_code(
+                code
+            )
         )
 
     except ValueError as exc:
@@ -232,7 +385,10 @@ async def google_callback(
 
     except Exception as exc:
 
-        print("Google OAuth Error:", exc)
+        print(
+            "Google OAuth Error:",
+            exc
+        )
 
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -253,10 +409,20 @@ async def google_callback(
 
     frontend_url = state.rstrip("/")
 
-    print("Google login successful")
-    print("Redirecting to:", frontend_url)
+    print(
+        "Google login successful"
+    )
+
+    print(
+        "Redirecting to:",
+        frontend_url
+    )
 
     return RedirectResponse(
-        url=f"{frontend_url}/auth/callback?token={jwt_token}",
+        url=(
+            f"{frontend_url}"
+            f"/auth/callback"
+            f"?token={jwt_token}"
+        ),
         status_code=status.HTTP_302_FOUND,
     )

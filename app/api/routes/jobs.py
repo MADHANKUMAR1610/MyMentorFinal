@@ -1,6 +1,12 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+    Query,
+    status,
+)
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import get_current_user
@@ -33,14 +39,26 @@ router = APIRouter(
 )
 async def create_job(
     data: JobCreate,
-    current_user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_db),
+    current_user: User = Depends(
+        get_current_user
+    ),
+    session: AsyncSession = Depends(
+        get_db
+    ),
 ):
     """
     Create a job posted by the current user.
+
+    job_code is generated automatically
+    by PostgreSQL.
     """
 
+    # --------------------------------------------------------
+    # Validate company
+    # --------------------------------------------------------
+
     if data.company_id is not None:
+
         company = await session.get(
             Company,
             data.company_id,
@@ -52,9 +70,16 @@ async def create_job(
                 detail="Company not found.",
             )
 
+    # --------------------------------------------------------
+    # Create Job
+    # --------------------------------------------------------
+
     job = Job(
         company_id=data.company_id,
+
+        # Never trust posted_by from frontend.
         posted_by=current_user.id,
+
         title=data.title,
         company_name=data.company_name,
         location=data.location,
@@ -64,19 +89,30 @@ async def create_job(
         skills=data.skills,
         description=data.description,
         apply_email=data.apply_email,
+
+        # Backend controls applicants.
         applicants=0,
+
         status=data.status,
     )
 
+    # --------------------------------------------------------
+    # Save
+    # --------------------------------------------------------
+
     service = JobService(session)
 
-    created_job = await service.create_job(job)
+    created_job = await service.create_job(
+        job
+    )
 
-    return JobResponse.model_validate(created_job)
+    return JobResponse.model_validate(
+        created_job
+    )
 
 
 # ============================================================
-# GET OPEN JOBS
+# GET JOBS
 # ============================================================
 
 @router.get(
@@ -84,21 +120,34 @@ async def create_job(
     response_model=list[JobResponse],
 )
 async def get_jobs(
-    company_id: UUID | None = Query(default=None),
-    title: str | None = Query(default=None),
-    location: str | None = Query(default=None),
+    company_id: UUID | None = Query(
+        default=None
+    ),
+    title: str | None = Query(
+        default=None
+    ),
+    location: str | None = Query(
+        default=None
+    ),
     job_status: str | None = Query(
         default=None,
         alias="status",
     ),
-    skip: int = Query(default=0, ge=0),
+    skip: int = Query(
+        default=0,
+        ge=0,
+    ),
     limit: int = Query(
         default=100,
         ge=1,
         le=100,
     ),
-    current_user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_db),
+    current_user: User = Depends(
+        get_current_user
+    ),
+    session: AsyncSession = Depends(
+        get_db
+    ),
 ):
     """
     Get jobs with optional filters.
@@ -106,35 +155,60 @@ async def get_jobs(
 
     service = JobService(session)
 
+    # --------------------------------------------------------
+    # Company filter
+    # --------------------------------------------------------
+
     if company_id is not None:
+
         jobs = await service.get_by_company_id(
             company_id,
             skip=skip,
             limit=limit,
         )
 
+    # --------------------------------------------------------
+    # Title filter
+    # --------------------------------------------------------
+
     elif title is not None:
+
         jobs = await service.get_by_title(
             title,
             skip=skip,
             limit=limit,
         )
 
+    # --------------------------------------------------------
+    # Location filter
+    # --------------------------------------------------------
+
     elif location is not None:
+
         jobs = await service.get_by_location(
             location,
             skip=skip,
             limit=limit,
         )
 
+    # --------------------------------------------------------
+    # Status filter
+    # --------------------------------------------------------
+
     elif job_status is not None:
+
         jobs = await service.get_by_status(
             job_status,
             skip=skip,
             limit=limit,
         )
 
+    # --------------------------------------------------------
+    # Default = ACTIVE JOBS
+    # --------------------------------------------------------
+
     else:
+
         jobs = await service.get_open_jobs(
             skip=skip,
             limit=limit,
@@ -155,14 +229,21 @@ async def get_jobs(
     response_model=list[JobResponse],
 )
 async def get_my_jobs(
-    skip: int = Query(default=0, ge=0),
+    skip: int = Query(
+        default=0,
+        ge=0,
+    ),
     limit: int = Query(
         default=100,
         ge=1,
         le=100,
     ),
-    current_user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_db),
+    current_user: User = Depends(
+        get_current_user
+    ),
+    session: AsyncSession = Depends(
+        get_db
+    ),
 ):
     """
     Get jobs posted by the current user.
@@ -192,8 +273,12 @@ async def get_my_jobs(
 )
 async def get_job_by_id(
     job_id: UUID,
-    current_user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_db),
+    current_user: User = Depends(
+        get_current_user
+    ),
+    session: AsyncSession = Depends(
+        get_db
+    ),
 ):
     """
     Get a job by UUID.
@@ -201,7 +286,9 @@ async def get_job_by_id(
 
     service = JobService(session)
 
-    job = await service.get_by_id(job_id)
+    job = await service.get_by_id(
+        job_id
+    )
 
     if job is None:
         raise HTTPException(
@@ -209,7 +296,9 @@ async def get_job_by_id(
             detail="Job not found.",
         )
 
-    return JobResponse.model_validate(job)
+    return JobResponse.model_validate(
+        job
+    )
 
 
 # ============================================================
@@ -223,8 +312,12 @@ async def get_job_by_id(
 async def update_job(
     job_id: UUID,
     data: JobUpdate,
-    current_user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_db),
+    current_user: User = Depends(
+        get_current_user
+    ),
+    session: AsyncSession = Depends(
+        get_db
+    ),
 ):
     """
     Update a job belonging to the current user.
@@ -232,7 +325,13 @@ async def update_job(
 
     service = JobService(session)
 
-    job = await service.get_by_id(job_id)
+    job = await service.get_by_id(
+        job_id
+    )
+
+    # --------------------------------------------------------
+    # Job exists?
+    # --------------------------------------------------------
 
     if job is None:
         raise HTTPException(
@@ -240,13 +339,22 @@ async def update_job(
             detail="Job not found.",
         )
 
+    # --------------------------------------------------------
+    # Ownership
+    # --------------------------------------------------------
+
     if job.posted_by != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You do not have permission to update this job.",
         )
 
+    # --------------------------------------------------------
+    # Company
+    # --------------------------------------------------------
+
     if data.company_id is not None:
+
         company = await session.get(
             Company,
             data.company_id,
@@ -259,6 +367,10 @@ async def update_job(
             )
 
         job.company_id = data.company_id
+
+    # --------------------------------------------------------
+    # Update fields
+    # --------------------------------------------------------
 
     if data.title is not None:
         job.title = data.title
@@ -290,9 +402,17 @@ async def update_job(
     if data.status is not None:
         job.status = data.status
 
-    updated_job = await service.update_job(job)
+    # --------------------------------------------------------
+    # Save
+    # --------------------------------------------------------
 
-    return JobResponse.model_validate(updated_job)
+    updated_job = await service.update_job(
+        job
+    )
+
+    return JobResponse.model_validate(
+        updated_job
+    )
 
 
 # ============================================================
@@ -305,8 +425,12 @@ async def update_job(
 )
 async def delete_job(
     job_id: UUID,
-    current_user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_db),
+    current_user: User = Depends(
+        get_current_user
+    ),
+    session: AsyncSession = Depends(
+        get_db
+    ),
 ):
     """
     Delete a job belonging to the current user.
@@ -314,7 +438,13 @@ async def delete_job(
 
     service = JobService(session)
 
-    job = await service.get_by_id(job_id)
+    job = await service.get_by_id(
+        job_id
+    )
+
+    # --------------------------------------------------------
+    # Job exists?
+    # --------------------------------------------------------
 
     if job is None:
         raise HTTPException(
@@ -322,12 +452,22 @@ async def delete_job(
             detail="Job not found.",
         )
 
+    # --------------------------------------------------------
+    # Ownership
+    # --------------------------------------------------------
+
     if job.posted_by != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You do not have permission to delete this job.",
         )
 
-    await service.delete_job(job)
+    # --------------------------------------------------------
+    # Delete
+    # --------------------------------------------------------
+
+    await service.delete_job(
+        job
+    )
 
     return None

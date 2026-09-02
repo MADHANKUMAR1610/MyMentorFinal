@@ -4,10 +4,13 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field
 
 
-class JobCreate(BaseModel):
-    company_id: UUID | None = None
+# ============================================================
+# CREATE JOB
+# ============================================================
 
-    posted_by: UUID | None = None
+class JobCreate(BaseModel):
+
+    company_id: UUID | None = None
 
     title: str = Field(
         min_length=2,
@@ -49,21 +52,19 @@ class JobCreate(BaseModel):
 
     apply_email: str | None = None
 
-    applicants: int = Field(
-        default=0,
-        ge=0,
-    )
-
     status: str = Field(
         default="active",
         max_length=30,
     )
 
 
-class JobUpdate(BaseModel):
-    company_id: UUID | None = None
+# ============================================================
+# UPDATE JOB
+# ============================================================
 
-    posted_by: UUID | None = None
+class JobUpdate(BaseModel):
+
+    company_id: UUID | None = None
 
     title: str | None = Field(
         default=None,
@@ -102,35 +103,52 @@ class JobUpdate(BaseModel):
 
     apply_email: str | None = None
 
-    applicants: int | None = Field(
-        default=None,
-        ge=0,
-    )
-
     status: str | None = Field(
         default=None,
         max_length=30,
     )
 
 
+# ============================================================
+# RESPONSE
+# ============================================================
+
 class JobResponse(BaseModel):
+
     model_config = ConfigDict(
         from_attributes=True,
     )
 
     id: UUID
+
+    job_code: str
+
     company_id: UUID | None
+
     posted_by: UUID | None
+
     title: str
+
     company_name: str
+
     location: str | None
+
     job_type: str
+
     experience: str | None
+
     salary: str | None
+
     skills: list[str]
+
     description: str
+
     apply_email: str | None
+
     applicants: int
+
     status: str
+
     created_at: datetime
+
     updated_at: datetime

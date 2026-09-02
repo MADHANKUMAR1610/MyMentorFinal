@@ -5,29 +5,52 @@ from app.core.security import (
     hash_password,
     verify_password,
 )
+
 from app.models.user import User
-from app.repositories.user_repository import UserRepository
+
+from app.repositories.user_repository import (
+    UserRepository,
+)
+
 from app.schemas.user import UserCreate
+
+from app.services.audit_log_service import (
+    AuditLogService,
+)
 
 
 class AuthService:
     """
     Service responsible for authentication operations.
-
-    Business logic belongs here.
-    Database operations belong in the repository layer.
     """
 
-    def __init__(self, session: AsyncSession):
-        self.repository = UserRepository(session)
+    def __init__(
+        self,
+        session: AsyncSession,
+    ):
+        self.session = session
+
+        self.repository = UserRepository(
+            session
+        )
+
+        self.audit_service = AuditLogService(
+            session
+        )
+
+    # ============================================================
+    # REGISTER
+    # ============================================================
 
     async def register(
         self,
         data: UserCreate,
     ) -> User:
 
-        existing_email = await self.repository.get_by_email(
-            data.email
+        existing_email = (
+            await self.repository.get_by_email(
+                data.email
+            )
         )
 
         if existing_email is not None:
@@ -38,10 +61,22 @@ class AuthService:
         user = User(
             name=data.name,
             email=data.email,
-            password_hash=hash_password(data.password),
+            password_hash=hash_password(
+                data.password
+            ),
         )
 
-        return await self.repository.create(user)
+        created_user = (
+            await self.repository.create(
+                user
+            )
+        )
+
+        return created_user
+
+    # ============================================================
+    # AUTHENTICATE
+    # ============================================================
 
     async def authenticate(
         self,
@@ -49,7 +84,11 @@ class AuthService:
         password: str,
     ) -> User | None:
 
-        user = await self.repository.get_by_email(email)
+        user = await (
+            self.repository.get_by_email(
+                email
+            )
+        )
 
         if user is None:
             return None
@@ -66,11 +105,29 @@ class AuthService:
         if not user.is_active:
             return None
 
+        # --------------------------------------------------------
+        # LOGIN AUDIT
+        # --------------------------------------------------------
+
+        if user.company_id is not None:
+
+            await self.audit_service.log_login(
+                user
+            )
+
+            await self.session.commit()
+
         return user
+
+    # ============================================================
+    # CREATE TOKEN
+    # ============================================================
 
     def create_token(
         self,
         user: User,
     ) -> str:
 
-        return create_access_token(user.id)
+        return create_access_token(
+            user.id
+        )
