@@ -84,11 +84,11 @@ async def get_current_company_admin(
     current_user: User = Depends(get_current_user),
 ) -> User:
 
-    if current_user.role != "company_admin":
+    if current_user.role not in ("company_admin", "organization_admin"):
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Company admin access required.",
-        )
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Company admin or organization admin access required.",
+    )
 
     if current_user.company_id is None:
         raise HTTPException(
