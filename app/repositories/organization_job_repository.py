@@ -1,7 +1,6 @@
 from uuid import UUID
 
 from sqlalchemy import func, select
-from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.job import Job
@@ -153,17 +152,7 @@ class OrganizationJobRepository:
             ),
 
             # ATS
-            ats_configuration=data.get(
-                "ats_configuration",
-                {
-                    "skills": 30,
-                    "experience": 20,
-                    "education": 15,
-                    "role_relevance": 20,
-                    "screening_questions": 10,
-                    "certifications": 5,
-                },
-            ),
+            ats_configuration=data.get("ats_configuration"),
 
             # Existing fields
             skills=data.get(

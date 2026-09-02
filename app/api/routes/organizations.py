@@ -21,7 +21,14 @@ from app.schemas.organization_job import (
     OrganizationJobResponse,
     OrganizationJobUpdate,
 )
+from app.schemas.organization_ats_config import (
+    OrganizationATSConfigUpdate,
+    OrganizationATSConfigResponse,
+)
 
+from app.services.organization_ats_config_service import (
+    OrganizationATSConfigService,
+)
 from app.services.organization_job_service import (
     OrganizationJobService,
 )
@@ -155,5 +162,39 @@ async def update_my_job(
     return await service.update_job(
         current_user.id,
         job_id,
+        data,
+    )
+# ============================================================
+# ATS CONFIGURATION
+# ============================================================
+
+@router.get(
+    "/me/ats-config",
+    response_model=OrganizationATSConfigResponse,
+)
+async def get_my_ats_config(
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    service = OrganizationATSConfigService(db)
+
+    return await service.get_config(
+        current_user.id
+    )
+
+
+@router.put(
+    "/me/ats-config",
+    response_model=OrganizationATSConfigResponse,
+)
+async def update_my_ats_config(
+    data: OrganizationATSConfigUpdate,
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    service = OrganizationATSConfigService(db)
+
+    return await service.update_config(
+        current_user.id,
         data,
     )

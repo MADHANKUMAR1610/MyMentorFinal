@@ -16,7 +16,9 @@ from app.schemas.organization_job import (
     OrganizationJobDraftCreate,
     OrganizationJobUpdate,
 )
-
+from app.repositories.organization_ats_config_repository import (
+    OrganizationATSConfigRepository,
+)
 
 class OrganizationJobService:
 
@@ -28,6 +30,9 @@ class OrganizationJobService:
 
         self.job_repository = (
             OrganizationJobRepository(db)
+        )
+        self.ats_repository = (
+            OrganizationATSConfigRepository(db)
         )
 
     # ============================================================
@@ -117,9 +122,24 @@ class OrganizationJobService:
         # Pydantic object -> dictionary
         # --------------------------------------------------------
 
-        job_data["ats_configuration"] = (
-            data.ats_configuration.model_dump()
+        ats_config = await self.ats_repository.get_by_company_id(
+            company.id
         )
+
+        if not ats_config:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="ATS configuration not found for this organization",
+            )
+
+        job_data["ats_configuration"] = {
+            "skills": ats_config.skills,
+            "experience": ats_config.experience,
+            "education": ats_config.education,
+            "role_relevance": ats_config.role_relevance,
+            "screening_questions": ats_config.screening_questions,
+            "certifications": ats_config.certifications,
+        }
 
         # --------------------------------------------------------
         # Compatibility with existing Job.skills field
@@ -189,9 +209,24 @@ class OrganizationJobService:
         # ATS configuration
         # --------------------------------------------------------
 
-        job_data["ats_configuration"] = (
-            data.ats_configuration.model_dump()
+        ats_config = await self.ats_repository.get_by_company_id(
+            company.id
         )
+
+        if not ats_config:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="ATS configuration not found for this organization",
+            )
+
+        job_data["ats_configuration"] = {
+            "skills": ats_config.skills,
+            "experience": ats_config.experience,
+            "education": ats_config.education,
+            "role_relevance": ats_config.role_relevance,
+            "screening_questions": ats_config.screening_questions,
+            "certifications": ats_config.certifications,
+        }
 
         # --------------------------------------------------------
         # Keep old skills field synchronized
