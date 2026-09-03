@@ -73,7 +73,19 @@ class RecentActivityResponse(BaseModel):
 
     activity: str
     created_at: datetime
+# ============================================================
+# CANDIDATE QUALITY
+# ============================================================
 
+class CandidateQualityDashboardResponse(BaseModel):
+
+    average_ats_score: float
+    average_match_score: float
+
+    score_distribution: dict[str, int]
+
+    above_90: int
+    below_60: int
 
 # ============================================================
 # COMPLETE DASHBOARD
@@ -86,6 +98,8 @@ class OrganizationDashboardResponse(BaseModel):
     candidates: CandidateDashboardSummary
 
     recruitment_funnel: RecruitmentFunnelResponse
+
+    candidate_quality: CandidateQualityDashboardResponse
 
     active_jobs: list[ActiveJobDashboardResponse]
 

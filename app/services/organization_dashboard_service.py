@@ -10,7 +10,13 @@ from app.repositories.organization_repository import (
 from app.repositories.organization_dashboard_repository import (
     OrganizationDashboardRepository,
 )
+from app.repositories.audit_log_repository import (
+    AuditLogRepository,
+)
 
+from app.repositories.organization_analytics_repository import (
+    OrganizationAnalyticsRepository,
+)
 
 class OrganizationDashboardService:
 
@@ -26,6 +32,14 @@ class OrganizationDashboardService:
 
         self.dashboard_repository = (
             OrganizationDashboardRepository(db)
+        )
+
+        self.audit_log_repository = (
+            AuditLogRepository(db)
+        )
+
+        self.analytics_repository = (
+            OrganizationAnalyticsRepository(db)
         )
 
     # ============================================================
@@ -76,7 +90,66 @@ class OrganizationDashboardService:
             self.dashboard_repository
             .get_application_counts(company_id)
         )
+        
+        # --------------------------------------------------------
+        # Candidate quality
+        # --------------------------------------------------------
 
+        candidate_quality = await (
+            self.analytics_repository
+            .get_candidate_quality(company_id)
+        )
+        # --------------------------------------------------------
+        # Recent activity
+        # --------------------------------------------------------
+
+        audit_logs = await (
+            self.audit_log_repository
+            .get_by_company_id(
+                company_id,
+                skip=0,
+                limit=10,
+            )
+        )
+
+        recent_activity = []
+
+        for log in audit_logs:
+
+            activity = None
+
+            if log.action == "login":
+                activity = f"{log.user or 'User'} logged in"
+
+            elif log.action == "logout":
+                activity = f"{log.user or 'User'} logged out"
+
+            elif log.action == "user_created":
+                activity = f"{log.user or 'Admin'} created a user"
+
+            elif log.action == "user_updated":
+                activity = f"{log.user or 'Admin'} updated a user"
+
+            elif log.action == "user_deleted":
+                activity = f"{log.user or 'Admin'} deleted a user"
+
+            elif log.action == "password_reset_requested":
+                activity = (
+                    f"{log.user or 'User'} requested a password reset"
+                )
+
+            else:
+                activity = (
+                    f"{log.user or 'User'} performed "
+                    f"{log.action.replace('_', ' ')}"
+                )
+
+            recent_activity.append(
+                {
+                    "activity": activity,
+                    "created_at": log.created_at,
+                }
+            )
         # --------------------------------------------------------
         # Active jobs
         # --------------------------------------------------------
@@ -182,11 +255,28 @@ class OrganizationDashboardService:
                 **job_counts,
             },
 
-            "candidates": application_counts,
+           "candidates": application_counts,
 
-            "recruitment_funnel": funnel,
+           "recruitment_funnel": funnel,
+
+           "candidate_quality": {
+              "average_ats_score":
+                  candidate_quality["average_ats_score"],
+
+              "average_match_score":
+                  candidate_quality["average_match_score"],
+
+              "score_distribution":
+                  candidate_quality["score_distribution"],
+
+              "above_90":
+                  candidate_quality["above_90"],
+
+              "below_60":
+                  candidate_quality["below_60"],
+            },
 
             "active_jobs": active_job_data,
 
-            "recent_activity": [],
+            "recent_activity": recent_activity,
         }
