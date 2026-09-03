@@ -436,7 +436,7 @@ async def export_job_performance(
     # --------------------------------------------------------
 
     headers = [
-        "Job ID",
+        
         "Job Title",
         "Department",
         "Applications",
@@ -482,12 +482,7 @@ async def export_job_performance(
     for job in jobs:
 
         values = [
-            str(
-                job.get(
-                    "job_id",
-                    "",
-                )
-            ),
+            
             job.get(
                 "job_title",
                 "",
@@ -560,8 +555,8 @@ async def export_job_performance(
     worksheet.freeze_panes = "A6"
 
     worksheet.auto_filter.ref = (
-        f"A5:L{max(row_number - 1, 5)}"
-    )
+    f"A5:K{max(row_number - 1, 5)}"
+)
 
     auto_width(worksheet)
 
