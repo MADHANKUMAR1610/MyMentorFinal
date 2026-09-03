@@ -611,24 +611,23 @@ class OrganizationJobService:
         for job in jobs:
 
             items.append(
-                {
-                    "id": job.id,
-                    "job_id": str(job.id),
-                    "title": job.title,
-                    "department": job.department,
-                    "location": job.location,
-                    "employment_type": job.job_type,
-                    "experience_min": job.min_experience,
-                    "experience_max": job.max_experience,
-                    "applications_count": job.applicants or 0,
-                    "matched_count": 0,
-                    "shortlisted_count": 0,
-                    "interviews_count": 0,
-                    "selected_count": 0,
-                    "status": job.status,
-                }
-            )
-
+    {
+        "id": job.id,
+        "job_id": job.job_code,
+        "title": job.title,
+        "department": job.department,
+        "location": job.location,
+        "employment_type": job.job_type,
+        "experience_min": job.min_experience,
+        "experience_max": job.max_experience,
+        "applications_count": job.applicants or 0,
+        "matched_count": 0,
+        "shortlisted_count": 0,
+        "interviews_count": 0,
+        "selected_count": 0,
+        "status": job.status,
+    }
+)
         # --------------------------------------------------------
         # Return paginated response
         # --------------------------------------------------------

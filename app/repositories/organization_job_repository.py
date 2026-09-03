@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.job import Job
@@ -130,19 +130,32 @@ class OrganizationJobRepository:
         data: dict,
     ) -> Job:
 
+        # Generate automatic JOB-1001, JOB-1002, JOB-1003...
+        result = await self.db.execute(
+            text("SELECT nextval('job_code_sequence')")
+        )
+
+        job_number = result.scalar_one()
+
+        job_code = f"JOB-{job_number}"
+
         job = Job(
+            job_code=job_code,
+
+            # Basic Information
             company_id=company_id,
             posted_by=posted_by,
 
-            # Basic Information
             company_name=data["company_name"],
             title=data["title"],
             department=data.get("department"),
             location=data.get("location"),
+
             job_type=data.get(
                 "job_type",
                 "Full-time",
             ),
+
             work_mode=data.get(
                 "work_mode",
                 "On-site",
@@ -151,6 +164,7 @@ class OrganizationJobRepository:
             min_experience=data.get(
                 "min_experience"
             ),
+
             max_experience=data.get(
                 "max_experience"
             ),
@@ -163,6 +177,7 @@ class OrganizationJobRepository:
             salary_min=data.get(
                 "salary_min"
             ),
+
             salary_max=data.get(
                 "salary_max"
             ),
@@ -170,6 +185,7 @@ class OrganizationJobRepository:
             recruiter_id=data.get(
                 "recruiter_id"
             ),
+
             hiring_manager_id=data.get(
                 "hiring_manager_id"
             ),
@@ -245,6 +261,7 @@ class OrganizationJobRepository:
         self.db.add(job)
 
         await self.db.commit()
+
         await self.db.refresh(job)
 
         return job
@@ -269,6 +286,7 @@ class OrganizationJobRepository:
                 )
 
         await self.db.commit()
+
         await self.db.refresh(job)
 
         return job
@@ -299,6 +317,7 @@ class OrganizationJobRepository:
         job.status = status
 
         await self.db.commit()
+
         await self.db.refresh(job)
 
         return job
@@ -313,7 +332,18 @@ class OrganizationJobRepository:
         posted_by: UUID,
     ) -> Job:
 
+        # Generate a NEW job code for duplicate
+        result = await self.db.execute(
+            text("SELECT nextval('job_code_sequence')")
+        )
+
+        job_number = result.scalar_one()
+
+        job_code = f"JOB-{job_number}"
+
         duplicated_job = Job(
+            job_code=job_code,
+
             company_id=job.company_id,
             posted_by=posted_by,
 
@@ -364,6 +394,7 @@ class OrganizationJobRepository:
         self.db.add(duplicated_job)
 
         await self.db.commit()
+
         await self.db.refresh(duplicated_job)
 
         return duplicated_job

@@ -384,6 +384,7 @@ class OrganizationJobResponse(BaseModel):
     )
 
     id: UUID
+    job_code: str
 
     company_id: UUID | None
 

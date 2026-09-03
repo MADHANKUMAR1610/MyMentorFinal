@@ -252,7 +252,7 @@ class CompanyService:
             # GOOGLE USER DATA
             contact_person_name=current_user.name,
             contact_email=current_user.email,
-            contact_phone=current_user.phone,
+            contact_phone=company_data.contact_phone,
             contact_role=company_data.contact_role,
         )
 
