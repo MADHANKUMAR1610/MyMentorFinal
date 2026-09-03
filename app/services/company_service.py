@@ -266,24 +266,27 @@ class CompanyService:
         # ====================================================
 
         admin_user = User(
-            email=admin_email,
+    email=admin_email,
 
-            password_hash=hash_password(
-                company_data.password
-            ),
+    password_hash=hash_password(
+        company_data.password
+    ),
 
-            name=current_user.name,
+    name=current_user.name,
 
-            role="organization_admin",
+    # ✅ ADD THIS
+    phone=company_data.contact_phone,
 
-            company_id=company.id,
+    role="organization_admin",
 
-            is_active=True,
+    company_id=company.id,
 
-            is_verified=False,
+    is_active=True,
 
-            onboarded=True,
-        )
+    is_verified=False,
+
+    onboarded=True,
+)
 
         self.session.add(admin_user)
 

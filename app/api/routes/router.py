@@ -16,6 +16,7 @@ from app.api.routes.mentor_applications import (
 from app.api.routes.bookings import router as bookings_router
 from app.api.routes import dashboard
 
+
 from app.api.routes.companies import (
     router as companies_router,
 )
@@ -23,9 +24,16 @@ from app.api.routes.companies import (
 from app.api.routes.company_applications import (
     router as company_applications_router,
 )
+from app.api.routes.notifications import (
+    router as notifications_router,
+)
 
 from app.api.routes.jobs import (
     router as jobs_router,
+)
+
+from app.api.routes.report_exports import (
+    router as report_exports_router,
 )
 
 from app.api.routes.job_applications import (
@@ -35,10 +43,10 @@ from app.api.routes.job_applications import (
 from app.api.routes.courses import (
     router as courses_router,
 )
+
 from app.api.routes.organizations import (
     router as organizations_router,
 )
-
 
 from app.api.routes.levels import (
     router as levels_router,
@@ -79,21 +87,28 @@ from app.api.routes.work_experience import (
 from app.api.routes.code_execution import (
     router as code_execution_router,
 )
+
 from app.api.routes.organization_applications import (
     router as organization_applications_router,
 )
+
 from app.api.routes.organization_member import (
     router as organization_member_router,
 )
+
 from app.api.routes.interview import (
     router as interview_router,
 )
+
 from app.api.routes.organization_analytics import (
     router as organization_analytics_router,
 )
+
 from app.api.routes.organization_dashboard import (
     router as organization_dashboard_router,
 )
+
+
 # ============================================================
 # MAIN API ROUTER
 # ============================================================
@@ -117,7 +132,13 @@ api_router.include_router(
 api_router.include_router(
     career_calendar_router
 )
+# ============================================================
+# NOTIFICATIONS
+# ============================================================
 
+api_router.include_router(
+    notifications_router
+)
 
 # ============================================================
 # CODE EXECUTION
@@ -162,6 +183,12 @@ api_router.include_router(
 api_router.include_router(
     users_router
 )
+
+
+# ============================================================
+# AUDIT LOGS
+# ============================================================
+
 api_router.include_router(
     audit_logs_router
 )
@@ -191,6 +218,15 @@ api_router.include_router(
 
 api_router.include_router(
     career_personas_router
+)
+
+
+# ============================================================
+# REPORT EXPORTS
+# ============================================================
+
+api_router.include_router(
+    report_exports_router
 )
 
 
@@ -240,11 +276,6 @@ api_router.include_router(
 
 
 # ============================================================
-# COMPANY ONBOARDING
-# ============================================================
-
-
-# ============================================================
 # COMPANY APPLICATIONS
 # ============================================================
 
@@ -288,22 +319,83 @@ api_router.include_router(
     courses_router
 )
 
-api_router.include_router(organizations_router)
+
+# ============================================================
+# ORGANIZATIONS
+# ============================================================
+
+api_router.include_router(
+    organizations_router
+)
+
+
+# ============================================================
+# ORGANIZATION APPLICATIONS
+# ============================================================
 
 api_router.include_router(
     organization_applications_router
 )
 
+
+# ============================================================
+# ORGANIZATION MEMBERS
+# ============================================================
+
 api_router.include_router(
     organization_member_router
 )
 
+
+# ============================================================
+# INTERVIEWS
+# ============================================================
+
 api_router.include_router(
     interview_router
 )
+
+
+# ============================================================
+# ORGANIZATION ANALYTICS
+# ============================================================
+
 api_router.include_router(
     organization_analytics_router
 )
+
+
+# ============================================================
+# ORGANIZATION DASHBOARD
+# ============================================================
+
 api_router.include_router(
     organization_dashboard_router
+)
+
+
+# ============================================================
+# LEVELS
+# ============================================================
+
+api_router.include_router(
+    levels_router
+)
+
+
+# ============================================================
+# CHECKPOINTS
+# ============================================================
+
+api_router.include_router(
+    checkpoints_router
+)
+
+
+# ============================================================
+# PROGRESS
+# ============================================================
+
+api_router.include_router(
+    progress_router
 )
