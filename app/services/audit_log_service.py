@@ -9,7 +9,7 @@ from app.models.user import User
 from app.repositories.audit_log_repository import (
     AuditLogRepository,
 )
-
+from app.models.job import Job
 
 class AuditLogService:
 
@@ -273,4 +273,76 @@ class AuditLogService:
             user_id,
             skip=skip,
             limit=limit,
+        )
+    # ============================================================
+    # MEMBER PASSWORD RESET
+    # ============================================================
+
+    async def log_password_reset(
+        self,
+        user: User,
+        *,
+        performed_by_user_id: UUID,
+        performed_by_name: str,
+    ) -> AuditLog | None:
+
+        if user.company_id is None:
+            return None
+
+        return await self.create_log(
+            company_id=user.company_id,
+            user_id=performed_by_user_id,
+            user=performed_by_name,
+            action="password_reset",
+            entity="user",
+            entity_id=user.id,
+            info=None,
+        )
+    # ============================================================
+    # JOB STATUS CHANGED
+    # ============================================================
+
+    async def log_job_status_changed(
+        self,
+        *,
+        company_id: UUID,
+        performed_by_user_id: UUID,
+        performed_by_name: str,
+        job: "Job",
+        old_status: str,
+        new_status: str,
+    ) -> AuditLog:
+
+        return await self.create_log(
+            company_id=company_id,
+            user_id=performed_by_user_id,
+            user=performed_by_name,
+            action="job_status_changed",
+            entity="job",
+            entity_id=job.id,
+            info=f"{old_status} -> {new_status}",
+        )
+    # ============================================================
+    # CANDIDATE STAGE CHANGED
+    # ============================================================
+
+    async def log_candidate_stage_changed(
+        self,
+        *,
+        company_id: UUID,
+        performed_by_user_id: UUID,
+        performed_by_name: str,
+        application: "JobApplication",
+        old_status: str,
+        new_status: str,
+    ) -> AuditLog:
+
+        return await self.create_log(
+            company_id=company_id,
+            user_id=performed_by_user_id,
+            user=performed_by_name,
+            action="candidate_stage_changed",
+            entity="application",
+            entity_id=application.id,
+            info=f"{old_status} -> {new_status}",
         )

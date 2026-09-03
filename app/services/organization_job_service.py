@@ -19,7 +19,9 @@ from app.repositories.job_application_repository import (
 from app.repositories.interview_repository import (
     InterviewRepository,
 )
-
+from app.services.audit_log_service import (
+    AuditLogService,
+)
 from app.models.user import User
 from app.models.user_profile import UserProfile
 from app.models.job_application import JobApplication
@@ -57,6 +59,7 @@ class OrganizationJobService:
         self.interview_repository = (
              InterviewRepository(db)
         )
+        self.audit_service = AuditLogService(db)
     # ============================================================
     # GET MY JOBS - FULL DETAILS
     # ============================================================
@@ -459,12 +462,13 @@ class OrganizationJobService:
     # ============================================================
 
     async def update_job_status(
-        self,
-        user_id: UUID,
-        job_id: UUID,
-        new_status: str,
-    ):
-
+    self,
+    user_id: UUID,
+    job_id: UUID,
+    new_status: str,
+    performed_by_name: str | None = None,
+):
+       
         # --------------------------------------------------------
         # Find organization
         # --------------------------------------------------------
@@ -494,6 +498,28 @@ class OrganizationJobService:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Job not found",
             )
+
+        # --------------------------------------------------------
+        # Store old status
+        # --------------------------------------------------------
+
+        old_status = job.status
+
+        # --------------------------------------------------------
+        # Create audit log BEFORE repository commit
+        # --------------------------------------------------------
+
+        await self.audit_service.log_job_status_changed(
+          company_id=company.id,
+          performed_by_user_id=user_id,
+          performed_by_name=(
+              performed_by_name
+            or "Organization Admin"
+   ),
+          job=job,
+          old_status=old_status,
+          new_status=new_status,
+)
 
         # --------------------------------------------------------
         # Update status

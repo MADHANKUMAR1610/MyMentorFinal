@@ -6,13 +6,25 @@ from app.models.job_application import JobApplication
 from app.repositories.job_application_repository import (
     JobApplicationRepository,
 )
-
+from app.services.audit_log_service import (
+    AuditLogService,
+)
 
 class JobApplicationService:
 
-    def __init__(self, session: AsyncSession):
-        self.repository = JobApplicationRepository(session)
+    def __init__(
+        self,
+        session: AsyncSession,
+    ):
+        self.session = session
 
+        self.repository = JobApplicationRepository(
+            session
+        )
+
+        self.audit_service = AuditLogService(
+            session
+        )
     # ============================================================
     # GET APPLICATION BY ID
     # ============================================================
@@ -151,21 +163,59 @@ class JobApplicationService:
         await self.repository.delete(
             application
         )
+
     async def update_organization_application_status(
         self,
         application_id: UUID,
         company_id: UUID,
         new_status: str,
+        performed_by_user_id: UUID,
+        performed_by_name: str,
     ) -> JobApplication | None:
 
-        return await (
-        self.repository
-        .update_organization_application_status(
-            application_id=application_id,
+        application = (
+            await self.repository.get_organization_application(
+                application_id=application_id,
+                company_id=company_id,
+            )
+        )
+
+        if application is None:
+            return None
+
+        # --------------------------------------------------------
+        # Store old stage
+        # --------------------------------------------------------
+
+        old_status = application.status
+
+        # --------------------------------------------------------
+        # Create audit log
+        # --------------------------------------------------------
+
+        await self.audit_service.log_candidate_stage_changed(
             company_id=company_id,
+            performed_by_user_id=performed_by_user_id,
+            performed_by_name=performed_by_name,
+            application=application,
+            old_status=old_status,
             new_status=new_status,
         )
+
+        # --------------------------------------------------------
+        # Update stage
+        # --------------------------------------------------------
+
+        application.status = new_status
+
+        await self.session.commit()
+
+        await self.session.refresh(
+            application
         )
+
+        return application
+
     # ============================================================
     # ORGANIZATION - GET ALL APPLICATIONS
     # ============================================================

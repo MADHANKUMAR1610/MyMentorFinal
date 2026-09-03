@@ -240,8 +240,8 @@ async def move_job_application(
         db
     )
 
-    organization = (
-        await organization_repository
+    organization = await (
+        organization_repository
         .get_by_admin_user_id(
             current_user.id
         )
@@ -257,7 +257,10 @@ async def move_job_application(
     # Verify job belongs to organization
     # --------------------------------------------------------
 
-    job = await db.get(Job, job_id)
+    job = await db.get(
+        Job,
+        job_id,
+    )
 
     if job is None:
         raise HTTPException(
@@ -272,16 +275,18 @@ async def move_job_application(
         )
 
     # --------------------------------------------------------
-    # Update application
+    # Get application BEFORE changing anything
     # --------------------------------------------------------
 
-    service = JobApplicationService(db)
+    service = JobApplicationService(
+        db
+    )
 
-    application = (
-        await service.update_organization_application_status(
+    application = await (
+        service.repository
+        .get_organization_application(
             application_id=application_id,
             company_id=organization.id,
-            new_status=data.status,
         )
     )
 
@@ -292,7 +297,7 @@ async def move_job_application(
         )
 
     # --------------------------------------------------------
-    # Make sure application belongs to this job
+    # Verify application belongs to this job
     # --------------------------------------------------------
 
     if application.job_id != job_id:
@@ -300,6 +305,23 @@ async def move_job_application(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Application does not belong to this job.",
         )
+
+    # --------------------------------------------------------
+    # Update + Audit Log
+    # --------------------------------------------------------
+
+    application = await (
+        service.update_organization_application_status(
+            application_id=application_id,
+            company_id=organization.id,
+            new_status=data.status,
+            performed_by_user_id=current_user.id,
+            performed_by_name=(
+                current_user.name
+                or "Organization Admin"
+            ),
+        )
+    )
 
     return JobApplicationResponse.model_validate(
         application

@@ -581,7 +581,7 @@ class OrganizationMemberService:
         # PASSWORD RESET REQUESTED AUDIT
         # --------------------------------------------------------
 
-        await self.audit_service.log_password_reset_requested(
+        await self.audit_service.log_password_reset(
             member,
             performed_by_user_id=user_id,
             performed_by_name=(

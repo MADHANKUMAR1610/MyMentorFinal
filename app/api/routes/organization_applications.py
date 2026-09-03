@@ -418,9 +418,10 @@ async def update_my_job_status(
     service = OrganizationJobService(db)
 
     return await service.update_job_status(
-        current_user.id,
-        job_id,
-        data.status,
+        user_id=current_user.id,
+        job_id=job_id,
+        new_status=data.status,
+        performed_by_name=current_user.name,
     )
 # ============================================================
 # DUPLICATE JOB
