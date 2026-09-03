@@ -65,3 +65,5 @@ cloudinary
 # Production Server
 # ==============================
 gunicorn
+
+openpyxl
