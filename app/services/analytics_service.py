@@ -2,6 +2,7 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+
 from app.repositories.organization_analytics_repository import (
     OrganizationAnalyticsRepository,
 )
