@@ -32,6 +32,7 @@ class Settings(BaseSettings):
 
     # Main production frontend
     FRONTEND_PRODUCTION_URL: str = (
+        "https://careercampus-bd89.onrender.com,"
         "https://my-mentor-organization.onrender.com"
     )
 
