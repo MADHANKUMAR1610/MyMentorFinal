@@ -59,6 +59,10 @@ class OrganizationMemberService:
         limit: int = 100,
     ):
 
+    # --------------------------------------------------------
+        # FIND ORGANIZATION
+    # --------------------------------------------------------
+
         organization = await (
             self.organization_repository
             .get_by_admin_user_id(
@@ -67,7 +71,6 @@ class OrganizationMemberService:
         )
 
         if organization is None:
-
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=(
@@ -76,7 +79,11 @@ class OrganizationMemberService:
                 ),
             )
 
-        return await (
+    # --------------------------------------------------------
+        # GET MEMBERS
+    # --------------------------------------------------------
+
+        members = await (
             self.member_repository
             .get_members_by_company_id(
                 organization.id,
@@ -84,6 +91,48 @@ class OrganizationMemberService:
                 limit=limit,
             )
         )
+
+    # --------------------------------------------------------
+        # GET LAST LOGIN FOR ALL MEMBERS
+    # --------------------------------------------------------
+
+        user_ids = [
+            member.id
+            for member in members
+        ]
+
+        last_logins = await (
+            self.member_repository
+            .get_last_logins(
+                user_ids
+            )
+        )
+
+    # --------------------------------------------------------
+        # BUILD RESPONSE
+    # --------------------------------------------------------
+
+        result = []
+
+        for member in members:
+
+            result.append({
+    "id": member.id,
+    "company_id": member.company_id,
+    "name": member.name,
+    "email": member.email,
+    "phone": member.phone,
+    "role": member.role,
+    "department": member.department,
+    "designation": member.designation,
+    "is_active": member.is_active,
+    "is_verified": member.is_verified,
+    "created_at": member.created_at,
+    "updated_at": member.updated_at,
+    "last_login": last_logins.get(member.id),
+})
+
+        return result
 
     # ============================================================
     # GET MEMBER

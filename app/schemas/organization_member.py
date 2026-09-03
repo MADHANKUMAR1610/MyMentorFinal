@@ -112,28 +112,19 @@ class OrganizationMemberResponse(BaseModel):
     )
 
     id: UUID
-
     name: str
-
     email: str | None
-
     phone: str | None
-
     department: str | None
-
     designation: str | None
-
     role: str
-
     company_id: UUID | None
-
     is_active: bool
-
     is_verified: bool
-
     created_at: datetime
-
     updated_at: datetime
+
+    last_login: datetime | None = None
 class OrganizationMemberPasswordReset(BaseModel):
 
     password: str = Field(

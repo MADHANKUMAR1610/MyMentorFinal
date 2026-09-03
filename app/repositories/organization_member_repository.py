@@ -3,6 +3,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.audit_log import AuditLog
 from app.models.user import User
 
 
@@ -178,6 +179,10 @@ class OrganizationMemberRepository:
 
         await self.db.commit()
 
+    # ============================================================
+    # UPDATE PASSWORD
+    # ============================================================
+
     async def update_password(
         self,
         user: User,
@@ -190,3 +195,40 @@ class OrganizationMemberRepository:
         await self.db.refresh(user)
 
         return user
+
+    # ============================================================
+    # GET LAST LOGIN FOR MEMBERS
+    # ============================================================
+
+    async def get_last_logins(
+        self,
+        user_ids: list[UUID],
+    ) -> dict[UUID, object]:
+
+        if not user_ids:
+            return {}
+
+        result = await self.db.execute(
+            select(
+               AuditLog.user_id,
+               AuditLog.created_at,
+            )
+            .where(
+               AuditLog.user_id.in_(user_ids),
+               AuditLog.action == "login",
+            )
+           .distinct(
+               AuditLog.user_id
+            )
+            .order_by(
+               AuditLog.user_id,
+               AuditLog.created_at.desc(),
+            )
+        )
+
+        rows = result.all()
+
+        return {
+            row.user_id: row.created_at
+            for row in rows
+        }
