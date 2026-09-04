@@ -12,7 +12,8 @@ from app.repositories.company_repository import (
 from app.utils.email_utils import (
     validate_official_company_email,
 )
-
+from app.services.email_service import EmailService
+from app.core.config import settings
 
 class CompanyService:
 
@@ -307,9 +308,67 @@ class CompanyService:
         # ====================================================
 
         await self.session.commit()
+        await self.session.refresh(company)
 
-        await self.session.refresh(
-            company
-        )
+        # Send Organization Portal email to the registered admin
+        try:
+            email_service = EmailService()
+
+            portal_url = "https://my-mentor-organization.onrender.com"
+
+            html_content = f"""
+            <html>
+                <body>
+                    <h2>Welcome to MyMentor Organization Portal</h2>
+
+                    <p>Dear {current_user.name or "Admin"},</p>
+
+                    <p>
+                        Your company registration has been submitted successfully.
+                    </p>
+
+                    <p>
+                        You can access the Organization Portal using the link below:
+                    </p>
+
+                    <p>
+                        <a href="{portal_url}">{portal_url}</a>
+                    </p>
+
+                    <p>
+                        Your account is currently pending verification.
+                        You will be able to access the portal after approval.
+                    </p>
+
+                    <p>Regards,<br>MyMentor Team</p>
+                </body>
+            </html>
+            """
+
+            text_content = f"""
+            Welcome to MyMentor Organization Portal
+
+            Your company registration has been submitted successfully.
+
+            Organization Portal:
+            {portal_url}
+
+            Your account is currently pending verification.
+            You will be able to access the portal after approval.
+
+            Regards,
+            MyMentor Team
+            """
+
+            await email_service.send_email(
+                to_email=admin_email,
+                subject="Welcome to MyMentor Organization Portal",
+                html_content=html_content,
+                text_content=text_content,
+            )
+
+        except Exception as email_error:
+            # Registration should remain successful even if email delivery fails
+            print(f"Failed to send organization portal email: {email_error}")
 
         return company

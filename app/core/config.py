@@ -35,12 +35,19 @@ class Settings(BaseSettings):
         "https://careercampus-bd89.onrender.com,"
         "https://my-mentor-organization.onrender.com"
     )
-
+    # Organization Portal
+    ORGANIZATION_PORTAL_URL: str = (
+        "https://my-mentor-organization.onrender.com"
+    )
     # Google OAuth
     GOOGLE_CLIENT_ID: str
     GOOGLE_CLIENT_SECRET: str
     GOOGLE_REDIRECT_URI: str
-
+    
+    MAILERSEND_API_TOKEN: str
+    MAILERSEND_FROM_EMAIL: str
+    MAILERSEND_FROM_NAME: str = "MyMentor"
+    MAILERSEND_API_URL: str = "https://api.mailersend.com/v1/email"
     # Gemini AI
     GEMINI_API_KEY: str
 
