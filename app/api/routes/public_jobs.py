@@ -1,6 +1,6 @@
 from math import ceil
 from uuid import UUID
-
+from fastapi import HTTPException
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,6 +10,7 @@ from app.models.job import Job
 from app.schemas.public_job import (
     PublicJobListItem,
     PublicJobListResponse,
+    PublicJobDetailsResponse,
 )
 
 
@@ -144,3 +145,33 @@ async def get_public_jobs(
         page_size=page_size,
         total_pages=total_pages,
     )
+@router.get(
+    "/{job_id}",
+    response_model=PublicJobDetailsResponse,
+)
+async def get_public_job_details(
+    job_id: UUID,
+    session: AsyncSession = Depends(get_db),
+):
+    """
+    Get one active job from any organization.
+
+    This endpoint is public and does not require authentication.
+    """
+
+    query = select(Job).where(
+        Job.id == job_id,
+        Job.status == "active",
+    )
+
+    result = await session.execute(query)
+
+    job = result.scalar_one_or_none()
+
+    if not job:
+        raise HTTPException(
+            status_code=404,
+            detail="Job not found",
+        )
+
+    return PublicJobDetailsResponse.model_validate(job)
