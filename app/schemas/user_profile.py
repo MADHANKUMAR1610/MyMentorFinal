@@ -9,9 +9,6 @@ from pydantic import BaseModel, ConfigDict, Field
 # ============================================================
 
 class UserProfileCreate(BaseModel):
-    """
-    Create a user profile.
-    """
 
     dob: date | None = None
 
@@ -48,11 +45,11 @@ class UserProfileCreate(BaseModel):
 
     career_interests: str | None = None
 
-    # --------------------------------------------------------
-    # PROFILE PHOTO
-    # --------------------------------------------------------
-
+    # Profile photo
     profile_photo_file_id: UUID | None = None
+
+    # Resume
+    resume_file_id: UUID | None = None
 
 
 # ============================================================
@@ -60,9 +57,6 @@ class UserProfileCreate(BaseModel):
 # ============================================================
 
 class UserProfileUpdate(BaseModel):
-    """
-    Update a user profile.
-    """
 
     dob: date | None = None
 
@@ -99,11 +93,11 @@ class UserProfileUpdate(BaseModel):
 
     career_interests: str | None = None
 
-    # --------------------------------------------------------
-    # PROFILE PHOTO
-    # --------------------------------------------------------
-
+    # Profile photo
     profile_photo_file_id: UUID | None = None
+
+    # Resume
+    resume_file_id: UUID | None = None
 
 
 # ============================================================
@@ -111,9 +105,6 @@ class UserProfileUpdate(BaseModel):
 # ============================================================
 
 class UserProfileResponse(BaseModel):
-    """
-    User profile API response.
-    """
 
     model_config = ConfigDict(
         from_attributes=True
@@ -135,9 +126,20 @@ class UserProfileResponse(BaseModel):
     profile_photo_file_id: UUID | None = None
     profile_photo_url: str | None = None
 
+    # Resume
+    resume_file_id: UUID | None = None
+    resume_url: str | None = None
+
     created_at: datetime
     updated_at: datetime
+
+
+# ============================================================
+# PROFILE SUMMARY
+# ============================================================
+
 class ProfileSummaryResponse(BaseModel):
+
     score: int
 
     badge: str
@@ -162,6 +164,7 @@ class ProfileSummaryResponse(BaseModel):
 # ============================================================
 
 class ScoreBreakdownResponse(BaseModel):
+
     total_score: int
 
     max_score: int

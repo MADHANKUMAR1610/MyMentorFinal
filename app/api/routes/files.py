@@ -15,7 +15,9 @@ from app.database.database import get_db
 
 from app.models.user import User
 from app.models.user_profile import UserProfile
+
 from app.schemas.file import FileUploadResponse
+
 from app.services.file_service import FileService
 
 
@@ -40,16 +42,21 @@ async def upload_file(
     session: AsyncSession = Depends(get_db),
 ):
     """
-    Upload a normal file for the currently authenticated user.
+    Upload a normal file.
 
-    This endpoint can be used for:
-    - Photos
+    Use this endpoint for:
+    - Resume
+    - Documents
     - Videos
     - Other supported files
+
+    IMPORTANT:
+    The returned `id` must be used as
+    `resume_file_id` in /profiles/me.
     """
 
     # ---------------------------------------------------------
-    # Validate file name
+    # Validate filename
     # ---------------------------------------------------------
 
     if not file.filename:
@@ -65,19 +72,29 @@ async def upload_file(
     service = FileService(session)
 
     try:
-        created_file, public_url = await service.upload_file(
-            file=file,
-            uploaded_by=current_user.id,
+
+        created_file, public_url = (
+            await service.upload_file(
+                file=file,
+                uploaded_by=current_user.id,
+            )
         )
 
     except ValueError as exc:
+
         raise HTTPException(
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
             detail=str(exc),
         ) from exc
 
     # ---------------------------------------------------------
-    # Response
+    # Commit file
+    # ---------------------------------------------------------
+
+    await session.commit()
+
+    # ---------------------------------------------------------
+    # Return file ID
     # ---------------------------------------------------------
 
     return FileUploadResponse(
@@ -89,9 +106,6 @@ async def upload_file(
     )
 
 
-# =========================================================
-# PROFILE PHOTO UPLOAD
-# =========================================================
 # =========================================================
 # PROFILE PHOTO UPLOAD
 # =========================================================
@@ -108,23 +122,24 @@ async def upload_profile_photo(
     """
     Upload a profile photo.
 
-    This endpoint can be used before the user profile
-    is created.
+    This endpoint can be used before
+    the profile is created.
     """
 
-    # =====================================================
-    # VALIDATE FILE NAME
-    # =====================================================
+    # ---------------------------------------------------------
+    # Validate filename
+    # ---------------------------------------------------------
 
     if not file.filename:
+
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="File name is required.",
         )
 
-    # =====================================================
-    # ALLOWED IMAGE TYPES
-    # =====================================================
+    # ---------------------------------------------------------
+    # Allowed image types
+    # ---------------------------------------------------------
 
     allowed_content_types = {
         "image/jpeg",
@@ -133,45 +148,52 @@ async def upload_profile_photo(
     }
 
     if file.content_type not in allowed_content_types:
+
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Only JPG, PNG, and WEBP images are allowed.",
         )
 
-    # =====================================================
-    # FILE SERVICE
-    # =====================================================
+    # ---------------------------------------------------------
+    # File service
+    # ---------------------------------------------------------
 
     service = FileService(session)
 
     try:
-        created_file, public_url = await service.upload_file(
-            file=file,
-            uploaded_by=current_user.id,
-            folder="profile-photos",
+
+        created_file, public_url = (
+            await service.upload_file(
+                file=file,
+                uploaded_by=current_user.id,
+                folder="profile-photos",
+            )
         )
 
     except ValueError as exc:
+
         raise HTTPException(
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
             detail=str(exc),
         ) from exc
 
-    # =====================================================
-    # SAVE FILE RECORD
-    # =====================================================
+    # ---------------------------------------------------------
+    # Commit
+    # ---------------------------------------------------------
 
     await session.commit()
 
-    # =====================================================
-    # RESPONSE
-    # =====================================================
+    # ---------------------------------------------------------
+    # Response
+    # ---------------------------------------------------------
 
     return {
         "file_id": created_file.id,
         "public_url": public_url,
     }
-    # =========================================================
+
+
+# =========================================================
 # UPDATE / REPLACE PROFILE PHOTO
 # =========================================================
 
@@ -186,25 +208,24 @@ async def update_profile_photo(
     session: AsyncSession = Depends(get_db),
 ):
     """
-    Upload or replace the currently authenticated user's
+    Upload or replace the authenticated user's
     profile photo.
-
-    Only JPG, PNG, and WEBP images are allowed.
     """
 
-    # =========================================================
-    # VALIDATE FILE NAME
-    # =========================================================
+    # ---------------------------------------------------------
+    # Validate filename
+    # ---------------------------------------------------------
 
     if not file.filename:
+
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="File name is required.",
         )
 
-    # =========================================================
-    # ALLOWED IMAGE TYPES
-    # =========================================================
+    # ---------------------------------------------------------
+    # Allowed image types
+    # ---------------------------------------------------------
 
     allowed_content_types = {
         "image/jpeg",
@@ -212,11 +233,8 @@ async def update_profile_photo(
         "image/webp",
     }
 
-    # =========================================================
-    # VALIDATE IMAGE TYPE
-    # =========================================================
-
     if file.content_type not in allowed_content_types:
+
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=(
@@ -225,12 +243,13 @@ async def update_profile_photo(
             ),
         )
 
-    # =========================================================
-    # GET USER PROFILE
-    # =========================================================
+    # ---------------------------------------------------------
+    # Get profile
+    # ---------------------------------------------------------
 
     result = await session.execute(
-        select(UserProfile).where(
+        select(UserProfile)
+        .where(
             UserProfile.user_id == current_user.id
         )
     )
@@ -238,57 +257,54 @@ async def update_profile_photo(
     profile = result.scalar_one_or_none()
 
     if profile is None:
+
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="User profile not found.",
         )
 
-    # =========================================================
-    # SAVE OLD PROFILE PHOTO ID
-    # =========================================================
-
-    
-
-    # =========================================================
-    # FILE SERVICE
-    # =========================================================
+    # ---------------------------------------------------------
+    # File service
+    # ---------------------------------------------------------
 
     service = FileService(session)
 
-    # =========================================================
-    # UPLOAD NEW PROFILE PHOTO
-    # =========================================================
-
     try:
-        created_file, public_url = await service.upload_file(
-            file=file,
-            uploaded_by=current_user.id,
-            folder="profile-photos",
+
+        created_file, public_url = (
+            await service.upload_file(
+                file=file,
+                uploaded_by=current_user.id,
+                folder="profile-photos",
+            )
         )
 
     except ValueError as exc:
+
         raise HTTPException(
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
             detail=str(exc),
         ) from exc
 
-    # =========================================================
-    # ASSIGN NEW PHOTO TO PROFILE
-    # =========================================================
+    # ---------------------------------------------------------
+    # Assign new photo
+    # ---------------------------------------------------------
 
-    profile.profile_photo_file_id = created_file.id
+    profile.profile_photo_file_id = (
+        created_file.id
+    )
 
-    # =========================================================
-    # SAVE CHANGES
-    # =========================================================
+    # ---------------------------------------------------------
+    # Commit
+    # ---------------------------------------------------------
 
     await session.commit()
 
     await session.refresh(profile)
 
-    # =========================================================
-    # RETURN NEW PROFILE PHOTO
-    # =========================================================
+    # ---------------------------------------------------------
+    # Response
+    # ---------------------------------------------------------
 
     return FileUploadResponse(
         id=created_file.id,

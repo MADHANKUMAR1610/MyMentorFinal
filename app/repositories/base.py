@@ -8,6 +8,7 @@ ModelType = TypeVar("ModelType")
 
 
 class BaseRepository(Generic[ModelType]):
+
     def __init__(
         self,
         model: Type[ModelType],
@@ -20,6 +21,7 @@ class BaseRepository(Generic[ModelType]):
         self,
         entity_id,
     ) -> Optional[ModelType]:
+
         result = await self.session.execute(
             select(self.model).where(
                 self.model.id == entity_id

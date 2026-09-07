@@ -1,21 +1,31 @@
-from uuid import UUID
+import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+    status,
+)
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload
 
 from app.api.dependencies import get_current_user
 from app.database.database import get_db
-from app.models.user import User
+
+from app.models.file import File
 from app.models.user_profile import UserProfile
+
 from app.schemas.user_profile import (
     UserProfileCreate,
-    UserProfileResponse,
     UserProfileUpdate,
+    UserProfileResponse,
 )
 
-from app.services.user_profile_service import UserProfileService
-from app.services.file_service import FileService
+from app.services.user_profile_service import (
+    UserProfileService,
+)
 
 
 router = APIRouter(
@@ -33,25 +43,25 @@ router = APIRouter(
     response_model=UserProfileResponse,
 )
 async def get_my_profile(
-    current_user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
-    """
-    Get the currently authenticated user's profile.
-    """
 
-    service = UserProfileService(session)
-    
+    service = UserProfileService(db)
 
-    profile = await service.get_by_user_id(current_user.id)
+    profile = await service.get_by_user_id(
+        current_user.id
+    )
 
-    if profile is None:
+    if not profile:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="User profile not found.",
+            detail="User profile not found",
         )
 
-    return UserProfileResponse.model_validate(profile)
+    return UserProfileResponse.model_validate(
+        service.build_profile_response(profile)
+    )
 
 
 # =========================================================
@@ -65,123 +75,179 @@ async def get_my_profile(
 )
 async def create_my_profile(
     data: UserProfileCreate,
-    current_user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
-    """
-    Create a profile for the currently authenticated user.
-    """
 
-    service = UserProfileService(session)
-    file_service = FileService(session)
+    service = UserProfileService(db)
+
+    # -----------------------------------------------------
+    # CHECK EXISTING PROFILE
+    # -----------------------------------------------------
 
     existing_profile = await service.get_by_user_id(
         current_user.id
     )
 
-    if existing_profile is not None:
+    if existing_profile:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="User profile already exists.",
+            detail="User profile already exists",
         )
 
-    # =====================================================
-    # PROFILE PHOTO VALIDATION
-    # =====================================================
+    # -----------------------------------------------------
+    # VALIDATE RESUME FILE
+    # -----------------------------------------------------
+
+    if data.resume_file_id is not None:
+
+        result = await db.execute(
+            select(File).where(
+                File.id == data.resume_file_id,
+                File.uploaded_by == current_user.id,
+                File.is_deleted.is_(False),
+            )
+        )
+
+        resume_file = result.scalar_one_or_none()
+
+        if resume_file is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid resume file.",
+            )
+
+    # -----------------------------------------------------
+    # VALIDATE PROFILE PHOTO
+    # -----------------------------------------------------
 
     if data.profile_photo_file_id is not None:
 
-        file = await file_service.get_by_id(
-            data.profile_photo_file_id
+        result = await db.execute(
+            select(File).where(
+                File.id == data.profile_photo_file_id,
+                File.uploaded_by == current_user.id,
+                File.is_deleted.is_(False),
+            )
         )
 
-        if file is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Profile photo file not found.",
-            )
+        profile_photo = result.scalar_one_or_none()
 
-        if file.uploaded_by != current_user.id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="You cannot use this file as your profile photo.",
-            )
-
-        if (
-            not file.content_type
-            or not file.content_type.startswith("image/")
-        ):
+        if profile_photo is None:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Only image files can be used as a profile photo.",
+                detail="Invalid profile photo file.",
             )
 
-        if file.is_deleted:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="This file is no longer available.",
-            )
-
-    # =====================================================
+    # -----------------------------------------------------
     # CREATE PROFILE
-    # =====================================================
+    # -----------------------------------------------------
 
     profile = UserProfile(
         user_id=current_user.id,
-        profile_photo_file_id=data.profile_photo_file_id,
+
         dob=data.dob,
         age=data.age,
+
         profile_category=data.profile_category,
         education=data.education,
         class_year=data.class_year,
         institution=data.institution,
+
         career_goal=data.career_goal,
         career_interests=data.career_interests,
+
+        profile_photo_file_id=data.profile_photo_file_id,
+        resume_file_id=data.resume_file_id,
     )
 
-    created_profile = await service.create_profile(
-        profile
+    # -----------------------------------------------------
+    # SAVE
+    # -----------------------------------------------------
+
+    db.add(profile)
+
+    await db.commit()
+
+    # -----------------------------------------------------
+    # RE-FETCH WITH FILE RELATIONSHIPS
+    # -----------------------------------------------------
+
+    result = await db.execute(
+        select(UserProfile)
+        .options(
+            joinedload(
+                UserProfile.profile_photo
+            ),
+            joinedload(
+                UserProfile.resume_file
+            ),
+            joinedload(
+                UserProfile.work_experiences
+            ),
+        )
+        .where(
+            UserProfile.user_id == current_user.id
+        )
     )
+
+    created_profile = (
+        result
+        .unique()
+        .scalar_one_or_none()
+    )
+
+    if not created_profile:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Profile creation failed",
+        )
 
     return UserProfileResponse.model_validate(
-        created_profile
+        service.build_profile_response(
+            created_profile
+        )
     )
 
 
 # =========================================================
 # UPDATE MY PROFILE
 # =========================================================
+
 @router.put(
     "/me",
     response_model=UserProfileResponse,
 )
 async def update_my_profile(
     data: UserProfileUpdate,
-    current_user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
-    """
-    Update the currently authenticated user's profile.
 
-    This endpoint also supports updating the profile photo.
-    """
+    service = UserProfileService(db)
 
-    service = UserProfileService(session)
-    file_service = FileService(session)
+    # -----------------------------------------------------
+    # GET PROFILE
+    # -----------------------------------------------------
 
-    profile = await service.get_by_user_id(
-        current_user.id
+    result = await db.execute(
+        select(UserProfile)
+        .where(
+            UserProfile.user_id == current_user.id
+        )
     )
 
-    if profile is None:
+    profile = result.scalar_one_or_none()
+
+    if not profile:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="User profile not found.",
+            detail="User profile not found",
         )
 
-    # =====================================================
-    # NORMAL PROFILE FIELDS
-    # =====================================================
+    # -----------------------------------------------------
+    # BASIC FIELDS
+    # -----------------------------------------------------
 
     if data.dob is not None:
         profile.dob = data.dob
@@ -190,7 +256,9 @@ async def update_my_profile(
         profile.age = data.age
 
     if data.profile_category is not None:
-        profile.profile_category = data.profile_category
+        profile.profile_category = (
+            data.profile_category
+        )
 
     if data.education is not None:
         profile.education = data.education
@@ -205,63 +273,140 @@ async def update_my_profile(
         profile.career_goal = data.career_goal
 
     if data.career_interests is not None:
-        profile.career_interests = data.career_interests
+        profile.career_interests = (
+            data.career_interests
+        )
 
-    # =====================================================
+    # -----------------------------------------------------
     # PROFILE PHOTO
-    # =====================================================
+    # -----------------------------------------------------
 
     if data.profile_photo_file_id is not None:
 
-        file = await file_service.get_by_id(
-            data.profile_photo_file_id
+        result = await db.execute(
+            select(File).where(
+                File.id == data.profile_photo_file_id,
+                File.uploaded_by == current_user.id,
+                File.is_deleted.is_(False),
+            )
         )
 
-        if file is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Profile photo file not found.",
-            )
+        profile_photo = result.scalar_one_or_none()
 
-        # Make sure this file belongs to current user
-        if file.uploaded_by != current_user.id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="You cannot use this file as your profile photo.",
-            )
-
-        # Make sure it is an image
-        if (
-            not file.content_type
-            or not file.content_type.startswith("image/")
-        ):
+        if profile_photo is None:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Only image files can be used as a profile photo.",
-            )
-
-        # Make sure the file is not deleted
-        if file.is_deleted:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="This file is no longer available.",
+                detail="Invalid profile photo file.",
             )
 
         profile.profile_photo_file_id = (
             data.profile_photo_file_id
         )
 
-    # =====================================================
-    # SAVE
-    # =====================================================
+    # -----------------------------------------------------
+    # RESUME
+    # -----------------------------------------------------
 
-    updated_profile = await service.update_profile(
-        profile
+    if data.resume_file_id is not None:
+
+        result = await db.execute(
+            select(File).where(
+                File.id == data.resume_file_id,
+                File.uploaded_by == current_user.id,
+                File.is_deleted.is_(False),
+            )
+        )
+
+        resume_file = result.scalar_one_or_none()
+
+        if resume_file is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid resume file.",
+            )
+
+        # THIS IS THE IMPORTANT PART
+        profile.resume_file_id = (
+            data.resume_file_id
+        )
+
+    # -----------------------------------------------------
+    # COMMIT DIRECTLY
+    # -----------------------------------------------------
+
+    await db.commit()
+
+    # -----------------------------------------------------
+    # RE-FETCH PROFILE WITH RESUME
+    # -----------------------------------------------------
+
+    result = await db.execute(
+        select(UserProfile)
+        .options(
+            joinedload(
+                UserProfile.profile_photo
+            ),
+            joinedload(
+                UserProfile.resume_file
+            ),
+            joinedload(
+                UserProfile.work_experiences
+            ),
+        )
+        .where(
+            UserProfile.user_id == current_user.id
+        )
     )
+
+    updated_profile = (
+        result
+        .unique()
+        .scalar_one_or_none()
+    )
+
+    if not updated_profile:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Profile update failed",
+        )
 
     return UserProfileResponse.model_validate(
-        updated_profile
+        service.build_profile_response(
+            updated_profile
+        )
     )
+
+
+# =========================================================
+# DELETE MY PROFILE
+# =========================================================
+
+@router.delete(
+    "/me",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def delete_my_profile(
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+
+    service = UserProfileService(db)
+
+    profile = await service.get_by_user_id(
+        current_user.id
+    )
+
+    if not profile:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User profile not found",
+        )
+
+    await service.delete_profile(profile)
+
+    return None
+
+
 # =========================================================
 # GET PROFILE BY ID
 # =========================================================
@@ -271,26 +416,23 @@ async def update_my_profile(
     response_model=UserProfileResponse,
 )
 async def get_profile_by_id(
-    profile_id: UUID,
-    current_user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_db),
+    profile_id: uuid.UUID,
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
-    """
-    Get a user profile by profile UUID.
-    """
 
-    service = UserProfileService(session)
+    service = UserProfileService(db)
 
     profile = await service.get_by_id(
         profile_id
     )
 
-    if profile is None:
+    if not profile:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="User profile not found.",
+            detail="User profile not found",
         )
 
     return UserProfileResponse.model_validate(
-        profile
+        service.build_profile_response(profile)
     )

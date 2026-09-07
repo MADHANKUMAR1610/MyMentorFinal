@@ -1,11 +1,25 @@
 import uuid
 
-from sqlalchemy import BigInteger, Boolean, ForeignKey, String, Text
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    ForeignKey,
+    String,
+    Text,
+)
+
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import Mapped, mapped_column
+
+from sqlalchemy.orm import (
+    Mapped,
+    mapped_column,
+)
 
 from app.database.database import Base
-from app.models.base import UUIDPrimaryKeyMixin, TimestampMixin
+from app.models.base import (
+    UUIDPrimaryKeyMixin,
+    TimestampMixin,
+)
 
 
 class File(
@@ -13,11 +27,17 @@ class File(
     TimestampMixin,
     Base,
 ):
+
     __tablename__ = "files"
 
-    uploaded_by: Mapped[uuid.UUID | None] = mapped_column(
+    uploaded_by: Mapped[
+        uuid.UUID | None
+    ] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("users.id", ondelete="SET NULL"),
+        ForeignKey(
+            "users.id",
+            ondelete="SET NULL",
+        ),
         nullable=True,
         index=True,
     )
@@ -40,7 +60,9 @@ class File(
         nullable=False,
     )
 
-    content_type: Mapped[str | None] = mapped_column(
+    content_type: Mapped[
+        str | None
+    ] = mapped_column(
         String(100),
         nullable=True,
     )

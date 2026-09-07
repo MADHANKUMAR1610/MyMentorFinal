@@ -22,7 +22,10 @@ class UserProfile(
 
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("users.id", ondelete="CASCADE"),
+        ForeignKey(
+            "users.id",
+            ondelete="CASCADE",
+        ),
         unique=True,
         nullable=False,
         index=True,
@@ -32,20 +35,43 @@ class UserProfile(
     # PROFILE PHOTO
     # =========================================================
 
-    profile_photo_file_id: Mapped[uuid.UUID | None] = mapped_column(
+    profile_photo_file_id: Mapped[
+        uuid.UUID | None
+    ] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("files.id", ondelete="SET NULL"),
+        ForeignKey(
+            "files.id",
+            ondelete="SET NULL",
+        ),
         nullable=True,
         index=True,
     )
 
-    # =========================================================
-    # PROFILE PHOTO RELATIONSHIP
-    # =========================================================
-
     profile_photo = relationship(
         "File",
         foreign_keys=[profile_photo_file_id],
+        lazy="joined",
+    )
+
+    # =========================================================
+    # RESUME
+    # =========================================================
+
+    resume_file_id: Mapped[
+        uuid.UUID | None
+    ] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey(
+            "files.id",
+            ondelete="SET NULL",
+        ),
+        nullable=True,
+        index=True,
+    )
+
+    resume_file = relationship(
+        "File",
+        foreign_keys=[resume_file_id],
         lazy="joined",
     )
 
@@ -63,32 +89,44 @@ class UserProfile(
         nullable=True,
     )
 
-    profile_category: Mapped[str | None] = mapped_column(
-        String(50),
+    profile_category: Mapped[
+        str | None
+    ] = mapped_column(
+        String(100),
         nullable=True,
     )
 
-    education: Mapped[str | None] = mapped_column(
-        String(255),
+    education: Mapped[
+        str | None
+    ] = mapped_column(
+        Text,
         nullable=True,
     )
 
-    class_year: Mapped[str | None] = mapped_column(
-        String(50),
+    class_year: Mapped[
+        str | None
+    ] = mapped_column(
+        String(20),
         nullable=True,
     )
 
-    institution: Mapped[str | None] = mapped_column(
-        String(255),
+    institution: Mapped[
+        str | None
+    ] = mapped_column(
+        Text,
         nullable=True,
     )
 
-    career_goal: Mapped[str | None] = mapped_column(
-        String(255),
+    career_goal: Mapped[
+        str | None
+    ] = mapped_column(
+        Text,
         nullable=True,
     )
 
-    career_interests: Mapped[str | None] = mapped_column(
+    career_interests: Mapped[
+        str | None
+    ] = mapped_column(
         Text,
         nullable=True,
     )
@@ -109,7 +147,7 @@ class UserProfile(
 
     work_experiences = relationship(
         "WorkExperience",
-        back_populates="user_profile",
+        back_populates="profile",
         cascade="all, delete-orphan",
         lazy="selectin",
     )

@@ -89,9 +89,11 @@ class WorkExperience(
 
     # =========================================================
     # RELATIONSHIP
+    # IMPORTANT:
+    # UserProfile uses back_populates="profile"
     # =========================================================
 
-    user_profile = relationship(
+    profile = relationship(
         "UserProfile",
         back_populates="work_experiences",
     )
