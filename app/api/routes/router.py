@@ -107,7 +107,9 @@ from app.api.routes.organization_analytics import (
 from app.api.routes.organization_dashboard import (
     router as organization_dashboard_router,
 )
-
+from app.api.routes.public_jobs import (
+    router as public_jobs_router,
+)
 
 # ============================================================
 # MAIN API ROUTER
@@ -124,7 +126,8 @@ api_router.include_router(
     course_journey_router
 )
 
-
+api_router.include_router(
+    public_jobs_router  )
 # ============================================================
 # CAREER CALENDAR
 # ============================================================
