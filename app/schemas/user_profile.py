@@ -127,7 +127,9 @@ class UserProfileResponse(BaseModel):
     profile_photo_url: str | None = None
 
     # Resume
+    
     resume_file_id: UUID | None = None
+    resume_file_name: str | None = None
     resume_url: str | None = None
 
     created_at: datetime

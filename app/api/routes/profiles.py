@@ -140,12 +140,14 @@ async def get_my_profile(
             profile_photo_url = profile_photo.public_url
 
     resume_url = None
+    resume_file_name = None
 
     if (
         profile.resume_file
         and not profile.resume_file.is_deleted
     ):
         resume_url = profile.resume_file.public_url
+        resume_file_name = profile.resume_file.original_filename
     # ---------------------------------------------------------
     # Return profile
     # ---------------------------------------------------------
@@ -164,6 +166,7 @@ async def get_my_profile(
         career_interests=profile.career_interests,
 
         profile_photo_file_id=profile.profile_photo_file_id,
+        resume_file_name=resume_file_name,
         profile_photo_url=profile_photo_url,
         resume_file_id=profile.resume_file_id,
         resume_url=resume_url,

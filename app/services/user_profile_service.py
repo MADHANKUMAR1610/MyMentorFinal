@@ -106,10 +106,11 @@ class UserProfileService:
             )
 
         # =====================================================
-        # RESUME URL
+        # RESUME DETAILS
         # =====================================================
 
         resume_url = None
+        resume_file_name = None
 
         if (
             profile.resume_file
@@ -117,6 +118,10 @@ class UserProfileService:
         ):
             resume_url = (
                 profile.resume_file.public_url
+            )
+
+            resume_file_name = (
+                profile.resume_file.original_filename
             )
 
         # =====================================================
@@ -141,15 +146,29 @@ class UserProfileService:
             # PROFILE PHOTO
             # =================================================
 
-            "profile_photo_file_id": profile.profile_photo_file_id,
-            "profile_photo_url": profile_photo_url,
+            "profile_photo_file_id": (
+                profile.profile_photo_file_id
+            ),
+
+            "profile_photo_url": (
+                profile_photo_url
+            ),
 
             # =================================================
             # RESUME
             # =================================================
 
-            "resume_file_id": profile.resume_file_id,
-            "resume_url": resume_url,
+            "resume_file_id": (
+                profile.resume_file_id
+            ),
+
+            "resume_file_name": (
+                resume_file_name
+            ),
+
+            "resume_url": (
+                resume_url
+            ),
 
             # =================================================
             # SKILLS
@@ -190,13 +209,18 @@ class UserProfileService:
                 "applications": 0,
             }
 
-        score = self._calculate_profile_score(profile)
+        score = self._calculate_profile_score(
+            profile
+        )
 
         return {
             "score": score,
-            "badge": self._get_profile_badge(score),
+            "badge": self._get_profile_badge(
+                score
+            ),
 
-            # Temporary value until we connect the User model
+            # Temporary value until we connect
+            # the User model
             "name": "",
 
             "xp": 0,
@@ -245,9 +269,14 @@ class UserProfileService:
             completed_fields += 1
 
         return round(
-            (completed_fields / total_fields) * 100
+            (
+                completed_fields
+                / total_fields
+            )
+            * 100
         )
-        # =========================================================
+
+    # =========================================================
     # GET PROFILE BADGE
     # =========================================================
 
@@ -266,12 +295,19 @@ class UserProfileService:
             return "Intermediate"
 
         return "Beginner"
-        # =========================================================
+
+    # =========================================================
     # GET SCORE BREAKDOWN
     # =========================================================
 
-    async def get_score_breakdown(self, user_id: uuid.UUID) -> dict:
-        profile = await self.repository.get_by_user_id(user_id)
+    async def get_score_breakdown(
+        self,
+        user_id: uuid.UUID,
+    ) -> dict:
+
+        profile = await self.repository.get_by_user_id(
+            user_id
+        )
 
         if not profile:
             return {
@@ -294,30 +330,59 @@ class UserProfileService:
                 "job_readiness_max": 25,
             }
 
-        # Profile completeness
-        profile_score = self._calculate_profile_score(profile)
+        # =====================================================
+        # PROFILE COMPLETENESS
+        # =====================================================
 
-        # Career clarity
+        profile_score = (
+            self._calculate_profile_score(
+                profile
+            )
+        )
+
+        # =====================================================
+        # CAREER CLARITY
+        # =====================================================
+
         career_clarity = 0
+
         if profile.career_goal:
             career_clarity += 15
+
         if profile.career_interests:
             career_clarity += 10
 
-        # Learning progress
-        # Currently no learning-progress data is connected
+        # =====================================================
+        # LEARNING PROGRESS
+        # =====================================================
+
+        # Currently no learning-progress data
+        # is connected
         learning_progress = 0
 
-        # Consistency
-        # Currently no activity/streak data is connected
+        # =====================================================
+        # CONSISTENCY
+        # =====================================================
+
+        # Currently no activity/streak data
+        # is connected
         consistency = 0
 
-        # Job readiness
+        # =====================================================
+        # JOB READINESS
+        # =====================================================
+
         job_readiness = 0
+
         if profile.resume_file_id:
             job_readiness += 15
+
         if profile.skills:
             job_readiness += 10
+
+        # =====================================================
+        # TOTAL SCORE
+        # =====================================================
 
         total_score = (
             career_clarity
@@ -326,6 +391,10 @@ class UserProfileService:
             + consistency
             + job_readiness
         )
+
+        # =====================================================
+        # RESPONSE
+        # =====================================================
 
         return {
             "total_score": total_score,
