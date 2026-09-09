@@ -1,294 +1,243 @@
-from pathlib import Path
-from uuid import uuid4
-
-import cloudinary
-import cloudinary.uploader
+from uuid import UUID
 
 from fastapi import UploadFile
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import settings
+from app.models.file import File
+from app.repositories.file_repository import FileRepository
+from app.services.storage_service import StorageService
 
 
-class StorageService:
+class FileService:
     """
-    Handles file storage.
+    Service responsible for file-related business logic.
 
-    Supported storage types:
-        - local
-        - cloudinary
+    Physical file storage is handled by StorageService.
 
-    Local storage is useful for development.
+    StorageService can use:
+        - local storage
+        - Cloudinary
 
-    Cloudinary should be used in production because
-    Render's local filesystem is ephemeral and files can
-    disappear after redeployment.
+    The File database record stores:
+        - storage_path
+        - public_url
+        - original filename
+        - content type
+        - file size
+        - uploaded user
     """
 
-    def __init__(self):
+    def __init__(
+        self,
+        session: AsyncSession,
+    ):
+        self.repository = FileRepository(session)
+        self.storage = StorageService()
 
-        self.storage_type = settings.STORAGE_TYPE.lower().strip()
+    # =========================================================
+    # GET BY ID
+    # =========================================================
 
-        # =========================================================
-        # CLOUDINARY
-        # =========================================================
+    async def get_by_id(
+        self,
+        file_id: UUID,
+    ) -> File | None:
 
-        if self.storage_type == "cloudinary":
+        return await self.repository.get_by_id(
+            file_id
+        )
 
-            cloudinary.config(
-                cloud_name=settings.CLOUDINARY_CLOUD_NAME,
-                api_key=settings.CLOUDINARY_API_KEY,
-                api_secret=settings.CLOUDINARY_API_SECRET,
-                secure=True,
-            )
+    # =========================================================
+    # GET BY STORAGE PATH
+    # =========================================================
 
-        # =========================================================
-        # LOCAL STORAGE
-        # =========================================================
+    async def get_by_storage_path(
+        self,
+        storage_path: str,
+    ) -> File | None:
 
-        elif self.storage_type == "local":
+        return await self.repository.get_by_storage_path(
+            storage_path
+        )
 
-            self.storage_path = Path(
-                settings.STORAGE_LOCAL_PATH
-            )
+    # =========================================================
+    # GET FILES BY USER
+    # =========================================================
 
-            self.public_base_url = (
-                settings.PUBLIC_BASE_URL.rstrip("/")
-            )
+    async def get_by_uploaded_by(
+        self,
+        user_id: UUID,
+        *,
+        skip: int = 0,
+        limit: int = 100,
+    ) -> list[File]:
 
-        # =========================================================
-        # INVALID STORAGE TYPE
-        # =========================================================
+        return await self.repository.get_by_uploaded_by(
+            user_id,
+            skip=skip,
+            limit=limit,
+        )
 
-        else:
+    # =========================================================
+    # GET ACTIVE FILES
+    # =========================================================
 
-            raise ValueError(
-                f"Unsupported storage type: "
-                f"{self.storage_type}"
-            )
+    async def get_active_files(
+        self,
+        *,
+        skip: int = 0,
+        limit: int = 100,
+    ) -> list[File]:
 
-    # =============================================================
-    # SAVE FILE
-    # =============================================================
+        return await self.repository.get_active_files(
+            skip=skip,
+            limit=limit,
+        )
 
-    async def save_file(
+    # =========================================================
+    # GET DELETED FILES
+    # =========================================================
+
+    async def get_deleted_files(
+        self,
+        *,
+        skip: int = 0,
+        limit: int = 100,
+    ) -> list[File]:
+
+        return await self.repository.get_deleted_files(
+            skip=skip,
+            limit=limit,
+        )
+
+    # =========================================================
+    # CREATE FILE RECORD
+    # =========================================================
+
+    async def create_file(
+        self,
+        file: File,
+    ) -> File:
+
+        return await self.repository.create(
+            file
+        )
+
+    # =========================================================
+    # UPDATE FILE RECORD
+    # =========================================================
+
+    async def update_file(
+        self,
+        file: File,
+    ) -> File:
+
+        return await self.repository.update(
+            file
+        )
+
+    # =========================================================
+    # DELETE FILE RECORD
+    # =========================================================
+
+    async def delete_file(
+        self,
+        file: File,
+    ) -> None:
+
+        await self.repository.delete(
+            file
+        )
+
+    # =========================================================
+    # UPLOAD FILE
+    # =========================================================
+
+    async def upload_file(
         self,
         file: UploadFile,
+        uploaded_by: UUID,
         folder: str = "files",
-    ) -> tuple[str, str, int]:
+    ) -> tuple[File, str]:
         """
-        Save an uploaded file.
+        Upload a physical file using StorageService
+        and create the corresponding database record.
 
         Returns:
             (
-                storage_path,
-                public_url,
-                file_size
+                File database record,
+                public URL
             )
 
         For Cloudinary:
-            storage_path = Cloudinary public_id
-            public_url = Cloudinary secure URL
 
-        For local:
-            storage_path = relative filesystem path
-            public_url = local API URL
+            storage_path
+                = Cloudinary public_id
+
+            public_url
+                = Cloudinary secure URL
+
+        For local storage:
+
+            storage_path
+                = local relative path
+
+            public_url
+                = local API URL
         """
 
-        # =========================================================
-        # VALIDATE FILENAME
-        # =========================================================
+        # =====================================================
+        # UPLOAD TO STORAGE
+        # =====================================================
 
-        original_filename = (
-            file.filename or "file"
+        (
+            storage_path,
+            public_url,
+            file_size,
+        ) = await self.storage.save_file(
+            file,
+            folder=folder,
         )
 
-        extension = (
-            Path(original_filename)
-            .suffix
-            .lower()
+        # =====================================================
+        # CREATE DATABASE RECORD
+        # =====================================================
+
+        file_record = File(
+            uploaded_by=uploaded_by,
+
+            # Cloudinary public_id OR
+            # local relative path
+            storage_path=storage_path,
+
+            # Cloudinary secure URL OR
+            # local API URL
+            public_url=public_url,
+
+            original_filename=(
+                file.filename or "file"
+            ),
+
+            content_type=file.content_type,
+
+            size=file_size,
+
+            is_deleted=False,
         )
 
-        # =========================================================
-        # CLOUDINARY STORAGE
-        # =========================================================
+        # =====================================================
+        # SAVE DATABASE RECORD
+        # =====================================================
 
-        if self.storage_type == "cloudinary":
+        created_file = await self.repository.create(
+            file_record
+        )
 
-            contents = await file.read()
+        # =====================================================
+        # RETURN
+        # =====================================================
 
-            file_size = len(contents)
-
-            # -----------------------------------------------------
-            # FILE SIZE VALIDATION
-            # -----------------------------------------------------
-
-            if file_size > settings.MAX_UPLOAD_SIZE:
-
-                raise ValueError(
-                    "File size exceeds the maximum "
-                    "allowed limit."
-                )
-
-            # -----------------------------------------------------
-            # GENERATE UNIQUE PUBLIC ID
-            # -----------------------------------------------------
-
-            # Example:
-            #
-            # mymentor/files/550e8400-e29b-41d4-a716-446655440000
-
-            public_id = (
-                f"mymentor/"
-                f"{folder}/"
-                f"{uuid4()}"
-            )
-
-            # -----------------------------------------------------
-            # UPLOAD TO CLOUDINARY
-            # -----------------------------------------------------
-
-            resource_type = "raw"
-
-            if file.content_type:
-
-                if file.content_type.startswith("image/"):
-
-                    resource_type = "image"
-
-                elif file.content_type.startswith("video/"):
-
-                    resource_type = "video"
-
-                else:
-
-                    resource_type = "raw"
-
-            result = cloudinary.uploader.upload(
-                contents,
-                public_id=public_id,
-                resource_type=resource_type,
-                overwrite=False,
-            )
-
-            # -----------------------------------------------------
-            # CLOUDINARY VALUES
-            # -----------------------------------------------------
-
-            storage_path = result["public_id"]
-
-            public_url = result["secure_url"]
-
-            # -----------------------------------------------------
-            # RETURN
-            # -----------------------------------------------------
-
-            return (
-                storage_path,
-                public_url,
-                file_size,
-            )
-
-        # =========================================================
-        # LOCAL STORAGE
-        # =========================================================
-
-        if self.storage_type == "local":
-
-            folder_path = (
-                self.storage_path / folder
-            )
-
-            folder_path.mkdir(
-                parents=True,
-                exist_ok=True,
-            )
-
-            # -----------------------------------------------------
-            # UNIQUE FILE NAME
-            # -----------------------------------------------------
-
-            unique_filename = (
-                f"{uuid4()}"
-                f"{extension}"
-            )
-
-            relative_path = (
-                Path(folder)
-                / unique_filename
-            )
-
-            absolute_path = (
-                self.storage_path
-                / relative_path
-            )
-
-            # -----------------------------------------------------
-            # WRITE FILE
-            # -----------------------------------------------------
-
-            file_size = 0
-
-            with absolute_path.open("wb") as buffer:
-
-                while chunk := await file.read(
-                    1024 * 1024
-                ):
-
-                    file_size += len(chunk)
-
-                    # ---------------------------------------------
-                    # FILE SIZE VALIDATION
-                    # ---------------------------------------------
-
-                    if (
-                        file_size
-                        > settings.MAX_UPLOAD_SIZE
-                    ):
-
-                        absolute_path.unlink(
-                            missing_ok=True
-                        )
-
-                        raise ValueError(
-                            "File size exceeds the "
-                            "maximum allowed limit."
-                        )
-
-                    buffer.write(chunk)
-
-            # -----------------------------------------------------
-            # STORAGE PATH
-            # -----------------------------------------------------
-
-            storage_path = (
-                relative_path.as_posix()
-            )
-
-            # -----------------------------------------------------
-            # PUBLIC URL
-            # -----------------------------------------------------
-
-            public_url = (
-                f"{self.public_base_url}"
-                f"/uploads/"
-                f"{storage_path}"
-            )
-
-            # -----------------------------------------------------
-            # RETURN
-            # -----------------------------------------------------
-
-            return (
-                storage_path,
-                public_url,
-                file_size,
-            )
-
-        # =========================================================
-        # SAFETY CHECK
-        # =========================================================
-
-        raise ValueError(
-            f"Unsupported storage type: "
-            f"{self.storage_type}"
+        return (
+            created_file,
+            public_url,
         )

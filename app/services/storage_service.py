@@ -136,32 +136,12 @@ class StorageService:
             # Example:
             #
             # mymentor/files/550e8400-e29b-41d4-a716-446655440000
-
+            #
             public_id = (
                 f"mymentor/"
                 f"{folder}/"
-                f"{uuid4()}{extension}"
+                f"{uuid4()}"
             )
-
-            # -----------------------------------------------------
-            # DETERMINE CLOUDINARY RESOURCE TYPE
-            # -----------------------------------------------------
-
-            resource_type = "raw"
-
-            if file.content_type:
-
-                if file.content_type.startswith("image/"):
-
-                    resource_type = "image"
-
-                elif file.content_type.startswith("video/"):
-
-                    resource_type = "video"
-
-                else:
-
-                    resource_type = "raw"
 
             # -----------------------------------------------------
             # UPLOAD TO CLOUDINARY
@@ -170,7 +150,7 @@ class StorageService:
             result = cloudinary.uploader.upload(
                 contents,
                 public_id=public_id,
-                resource_type=resource_type,
+                resource_type="auto",
                 overwrite=False,
             )
 
