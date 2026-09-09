@@ -54,8 +54,7 @@ async def get_my_profile_summary(
     )
 
     return await service.get_profile_summary(
-        user=current_user,
-        profile=profile,
+        user_id=current_user.id,
     )
 
 
@@ -83,8 +82,7 @@ async def get_my_score_breakdown(
     )
 
     return await service.get_score_breakdown(
-        user=current_user,
-        profile=profile,
+        user_id=current_user.id,
     )
 
 
