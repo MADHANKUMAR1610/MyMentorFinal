@@ -110,7 +110,6 @@ from app.api.routes.organization_dashboard import (
 from app.api.routes.public_jobs import (
     router as public_jobs_router,
 )
-
 # ============================================================
 # MAIN API ROUTER
 # ============================================================

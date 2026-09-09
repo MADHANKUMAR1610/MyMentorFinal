@@ -3,18 +3,16 @@ from uuid import UUID
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.models.job import Job
 from app.models.job_application import JobApplication
 from app.repositories.base import BaseRepository
 
 
-class JobApplicationRepository(
-    BaseRepository[JobApplication]
-):
+class JobApplicationRepository(BaseRepository[JobApplication]):
     """
-    Repository responsible for JobApplication
-    database operations.
+    Repository responsible for JobApplication database operations.
 
     Business rules belong in the service layer.
     """
@@ -33,18 +31,11 @@ class JobApplicationRepository(
         skip: int = 0,
         limit: int = 100,
     ) -> list[JobApplication]:
-        """
-        Get applications submitted for a specific job.
-        """
-
         result = await self.session.execute(
             select(JobApplication)
-            .where(
-                JobApplication.job_id == job_id
-            )
-            .order_by(
-                JobApplication.created_at.desc()
-            )
+            .options(selectinload(JobApplication.resume_file))
+            .where(JobApplication.job_id == job_id)
+            .order_by(JobApplication.created_at.desc())
             .offset(skip)
             .limit(limit)
         )
@@ -62,18 +53,11 @@ class JobApplicationRepository(
         skip: int = 0,
         limit: int = 100,
     ) -> list[JobApplication]:
-        """
-        Get applications submitted by a specific user.
-        """
-
         result = await self.session.execute(
             select(JobApplication)
-            .where(
-                JobApplication.applicant_user_id == user_id
-            )
-            .order_by(
-                JobApplication.created_at.desc()
-            )
+            .options(selectinload(JobApplication.resume_file))
+            .where(JobApplication.applicant_user_id == user_id)
+            .order_by(JobApplication.created_at.desc())
             .offset(skip)
             .limit(limit)
         )
@@ -91,18 +75,11 @@ class JobApplicationRepository(
         skip: int = 0,
         limit: int = 100,
     ) -> list[JobApplication]:
-        """
-        Get applications using applicant email.
-        """
-
         result = await self.session.execute(
             select(JobApplication)
-            .where(
-                JobApplication.email == email
-            )
-            .order_by(
-                JobApplication.created_at.desc()
-            )
+            .options(selectinload(JobApplication.resume_file))
+            .where(JobApplication.email == email.strip().lower())
+            .order_by(JobApplication.created_at.desc())
             .offset(skip)
             .limit(limit)
         )
@@ -120,18 +97,11 @@ class JobApplicationRepository(
         skip: int = 0,
         limit: int = 100,
     ) -> list[JobApplication]:
-        """
-        Get applications by status.
-        """
-
         result = await self.session.execute(
             select(JobApplication)
-            .where(
-                JobApplication.status == status
-            )
-            .order_by(
-                JobApplication.created_at.desc()
-            )
+            .options(selectinload(JobApplication.resume_file))
+            .where(JobApplication.status == status)
+            .order_by(JobApplication.created_at.desc())
             .offset(skip)
             .limit(limit)
         )
@@ -147,15 +117,32 @@ class JobApplicationRepository(
         job_id: UUID,
         user_id: UUID,
     ) -> Optional[JobApplication]:
-        """
-        Get a user's application for a specific job.
-        """
-
         result = await self.session.execute(
             select(JobApplication)
+            .options(selectinload(JobApplication.resume_file))
             .where(
                 JobApplication.job_id == job_id,
                 JobApplication.applicant_user_id == user_id,
+            )
+        )
+
+        return result.scalar_one_or_none()
+
+    # ============================================================
+    # GET APPLICATION BY JOB AND EMAIL
+    # ============================================================
+
+    async def get_by_job_and_email(
+        self,
+        job_id: UUID,
+        email: str,
+    ) -> Optional[JobApplication]:
+        result = await self.session.execute(
+            select(JobApplication)
+            .options(selectinload(JobApplication.resume_file))
+            .where(
+                JobApplication.job_id == job_id,
+                JobApplication.email == email.strip().lower(),
             )
         )
 
@@ -176,76 +163,39 @@ class JobApplicationRepository(
         email: str | None = None,
         job_id: UUID | None = None,
     ) -> list[JobApplication]:
-
         query = (
             select(JobApplication)
-            .join(
-                Job,
-                JobApplication.job_id == Job.id,
-            )
-            .where(
-                Job.company_id == company_id
-            )
+            .options(selectinload(JobApplication.resume_file))
+            .join(Job, JobApplication.job_id == Job.id)
+            .where(Job.company_id == company_id)
         )
 
-    # --------------------------------------------------------
-    # Filter by application status
-    # --------------------------------------------------------
-
         if status is not None:
-            query = query.where(
-                JobApplication.status == status
-            )
-
-    # --------------------------------------------------------
-    # Filter by applicant name
-    # --------------------------------------------------------
+            query = query.where(JobApplication.status == status)
 
         if name is not None:
             query = query.where(
-                JobApplication.name.ilike(
-                    f"%{name}%"
-                )
+                JobApplication.name.ilike(f"%{name.strip()}%")
             )
-
-    # --------------------------------------------------------
-    # Filter by applicant email
-    # --------------------------------------------------------
 
         if email is not None:
             query = query.where(
-                JobApplication.email.ilike(
-                    f"%{email}%"
-                )
+                JobApplication.email.ilike(f"%{email.strip()}%")
             )
-
-    # --------------------------------------------------------
-    # Filter by job
-    # --------------------------------------------------------
 
         if job_id is not None:
-            query = query.where(
-                JobApplication.job_id == job_id
-            )
-
-    # --------------------------------------------------------
-    # Pagination + ordering
-    # --------------------------------------------------------
+            query = query.where(JobApplication.job_id == job_id)
 
         query = (
             query
-            .order_by(
-                JobApplication.created_at.desc()
-            )
+            .order_by(JobApplication.created_at.desc())
             .offset(skip)
             .limit(limit)
         )
 
         result = await self.session.execute(query)
 
-        return list(
-            result.scalars().all()
-        )
+        return list(result.scalars().all())
 
     # ============================================================
     # GET APPLICATIONS FOR ORGANIZATION JOB
@@ -259,24 +209,15 @@ class JobApplicationRepository(
         skip: int = 0,
         limit: int = 100,
     ) -> list[JobApplication]:
-        """
-        Get applications for a specific job
-        only when the job belongs to the organization.
-        """
-
         result = await self.session.execute(
             select(JobApplication)
-            .join(
-                Job,
-                JobApplication.job_id == Job.id,
-            )
+            .options(selectinload(JobApplication.resume_file))
+            .join(Job, JobApplication.job_id == Job.id)
             .where(
                 JobApplication.job_id == job_id,
                 Job.company_id == company_id,
             )
-            .order_by(
-                JobApplication.created_at.desc()
-            )
+            .order_by(JobApplication.created_at.desc())
             .offset(skip)
             .limit(limit)
         )
@@ -292,17 +233,10 @@ class JobApplicationRepository(
         application_id: UUID,
         company_id: UUID,
     ) -> Optional[JobApplication]:
-        """
-        Get a specific application only when
-        its job belongs to the organization.
-        """
-
         result = await self.session.execute(
             select(JobApplication)
-            .join(
-                Job,
-                JobApplication.job_id == Job.id,
-            )
+            .options(selectinload(JobApplication.resume_file))
+            .join(Job, JobApplication.job_id == Job.id)
             .where(
                 JobApplication.id == application_id,
                 Job.company_id == company_id,
@@ -311,6 +245,10 @@ class JobApplicationRepository(
 
         return result.scalar_one_or_none()
 
+    # ============================================================
+    # GET COMPANY APPLICATION STATS
+    # ============================================================
+
     async def get_company_application_stats(
         self,
         company_id: UUID,
@@ -318,61 +256,37 @@ class JobApplicationRepository(
         result = await self.session.execute(
             select(
                 JobApplication.status,
+                func.count(JobApplication.id),
             )
-            .join(
-                Job,
-                JobApplication.job_id == Job.id,
-            )
-            .where(
-                Job.company_id == company_id
-            )
+            .join(Job, JobApplication.job_id == Job.id)
+            .where(Job.company_id == company_id)
+            .group_by(JobApplication.status)
         )
-
-        applications = result.all()
 
         stats = {
             "total": 0,
             "submitted": 0,
-            "reviewing": 0,
+            "screening": 0,
             "shortlisted": 0,
             "interview": 0,
+            "technical_round": 0,
+            "hr_round": 0,
+            "finalist": 0,
             "selected": 0,
             "rejected": 0,
         }
 
-        for row in applications:
-            application_status = row.status
-
-            stats["total"] += 1
-
+        for application_status, count in result.all():
             if application_status in stats:
-                stats[application_status] += 1
+                stats[application_status] = count
+
+            stats["total"] += count
 
         return stats
 
-    async def update_organization_application_status(
-        self,
-        application_id: UUID,
-        company_id: UUID,
-        new_status: str,
-    ) -> JobApplication | None:
-        application = (
-            await self.get_organization_application(
-                application_id=application_id,
-                company_id=company_id,
-            )
-        )
-
-        if application is None:
-            return None
-
-        application.status = new_status
-
-        await self.session.commit()
-
-        await self.session.refresh(application)
-
-        return application
+    # ============================================================
+    # GET STATUS COUNTS BY COMPANY
+    # ============================================================
 
     async def get_status_counts_by_company_id(
         self,
@@ -383,23 +297,19 @@ class JobApplicationRepository(
                 JobApplication.status,
                 func.count(JobApplication.id),
             )
-            .join(
-                Job,
-                JobApplication.job_id == Job.id,
-            )
-            .where(
-                Job.company_id == company_id
-            )
-            .group_by(
-                JobApplication.status
-            )
+            .join(Job, JobApplication.job_id == Job.id)
+            .where(Job.company_id == company_id)
+            .group_by(JobApplication.status)
         )
 
         counts = {
             "submitted": 0,
-            "reviewing": 0,
+            "screening": 0,
             "shortlisted": 0,
             "interview": 0,
+            "technical_round": 0,
+            "hr_round": 0,
+            "finalist": 0,
             "selected": 0,
             "rejected": 0,
         }

@@ -130,59 +130,37 @@ class UserProfileService:
             "dob": profile.dob,
             "age": profile.age,
 
-            "profile_category": (
-                profile.profile_category
-            ),
-
-            "education": (
-                profile.education
-            ),
-
-            "class_year": (
-                profile.class_year
-            ),
-
-            "institution": (
-                profile.institution
-            ),
-
-            "career_goal": (
-                profile.career_goal
-            ),
-
-            "career_interests": (
-                profile.career_interests
-            ),
+            "profile_category": profile.profile_category,
+            "education": profile.education,
+            "class_year": profile.class_year,
+            "institution": profile.institution,
+            "career_goal": profile.career_goal,
+            "career_interests": profile.career_interests,
 
             # =================================================
             # PROFILE PHOTO
             # =================================================
 
-            "profile_photo_file_id": (
-                profile.profile_photo_file_id
-            ),
-
-            "profile_photo_url": (
-                profile_photo_url
-            ),
+            "profile_photo_file_id": profile.profile_photo_file_id,
+            "profile_photo_url": profile_photo_url,
 
             # =================================================
             # RESUME
             # =================================================
 
-            "resume_file_id": (
-                profile.resume_file_id
-            ),
-
-            "resume_url": (
-                resume_url
-            ),
+            "resume_file_id": profile.resume_file_id,
+            "resume_url": resume_url,
 
             # =================================================
             # SKILLS
             # =================================================
 
-            "skills": (
-                profile.skills or []
-            ),
+            "skills": profile.skills or [],
+
+            # =================================================
+            # TIMESTAMPS
+            # =================================================
+
+            "created_at": profile.created_at,
+            "updated_at": profile.updated_at,
         }

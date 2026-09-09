@@ -18,6 +18,8 @@ from app.schemas.user_profile import (
     ProfileSummaryResponse,
     ScoreBreakdownResponse,
 )
+from sqlalchemy import select
+from sqlalchemy.orm import joinedload
 
 from app.services.user_profile_service import UserProfileService
 
@@ -139,6 +141,13 @@ async def get_my_profile(
         if profile_photo is not None:
             profile_photo_url = profile_photo.public_url
 
+    resume_url = None
+
+    if (
+        profile.resume_file
+        and not profile.resume_file.is_deleted
+    ):
+        resume_url = profile.resume_file.public_url
     # ---------------------------------------------------------
     # Return profile
     # ---------------------------------------------------------
@@ -158,7 +167,8 @@ async def get_my_profile(
 
         profile_photo_file_id=profile.profile_photo_file_id,
         profile_photo_url=profile_photo_url,
-
+        resume_file_id=profile.resume_file_id,
+        resume_url=resume_url,
         created_at=profile.created_at,
         updated_at=profile.updated_at,
     )
@@ -320,19 +330,69 @@ async def update_my_profile(
         # ----------------------------------------------------
 
         profile.profile_photo_file_id = file.id
+    # ========================================================
+    # RESUME
+    # ========================================================
 
+    if data.resume_file_id is not None:
+
+        result = await session.execute(
+            select(File).where(
+                File.id == data.resume_file_id,
+                File.uploaded_by == current_user.id,
+                File.is_deleted.is_(False),
+            )
+        )
+
+        resume_file = result.scalar_one_or_none()
+
+        if resume_file is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Resume file not found.",
+            )
+
+        # ----------------------------------------------------
+        # Validate resume file type
+        # ----------------------------------------------------
+
+        allowed_resume_types = {
+            "application/pdf",
+            "application/msword",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        }
+
+        if resume_file.content_type not in allowed_resume_types:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Only PDF, DOC, and DOCX files can be used as a resume.",
+            )
+
+        # ----------------------------------------------------
+        # Save resume file ID
+        # ----------------------------------------------------
+
+        profile.resume_file_id = resume_file.id
     # ========================================================
     # SAVE PROFILE
     # ========================================================
 
-    updated_profile = await service.update_profile(
-        profile
+    updated_profile = await service.update_profile(profile)
+
+    result = await session.execute(
+        select(UserProfile)
+        .options(
+            joinedload(UserProfile.profile_photo),
+            joinedload(UserProfile.resume_file),
+        )
+        .where(UserProfile.id == updated_profile.id)
     )
+
+    updated_profile = result.unique().scalar_one()
 
     return UserProfileResponse.model_validate(
-        updated_profile
+        service.build_profile_response(updated_profile)
     )
-
 
 # ============================================================
 # DELETE MY PROFILE
