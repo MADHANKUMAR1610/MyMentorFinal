@@ -192,6 +192,10 @@ async def create_my_profile(
 
     service = UserProfileService(session)
 
+    # ---------------------------------------------------------
+    # Check if profile already exists
+    # ---------------------------------------------------------
+
     existing_profile = await service.get_by_user_id(
         current_user.id
     )
@@ -201,6 +205,88 @@ async def create_my_profile(
             status_code=status.HTTP_409_CONFLICT,
             detail="User profile already exists.",
         )
+
+    # ---------------------------------------------------------
+    # Validate profile photo
+    # ---------------------------------------------------------
+
+    profile_photo_file = None
+
+    if data.profile_photo_file_id is not None:
+
+        result = await session.execute(
+            select(File).where(
+                File.id == data.profile_photo_file_id,
+                File.uploaded_by == current_user.id,
+                File.is_deleted.is_(False),
+            )
+        )
+
+        profile_photo_file = result.scalar_one_or_none()
+
+        if profile_photo_file is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Profile photo file not found.",
+            )
+
+        allowed_content_types = {
+            "image/jpeg",
+            "image/png",
+            "image/webp",
+        }
+
+        if profile_photo_file.content_type not in allowed_content_types:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    "Only JPG, PNG, and WEBP images "
+                    "can be used as a profile photo."
+                ),
+            )
+
+    # ---------------------------------------------------------
+    # Validate resume
+    # ---------------------------------------------------------
+
+    resume_file = None
+
+    if data.resume_file_id is not None:
+
+        result = await session.execute(
+            select(File).where(
+                File.id == data.resume_file_id,
+                File.uploaded_by == current_user.id,
+                File.is_deleted.is_(False),
+            )
+        )
+
+        resume_file = result.scalar_one_or_none()
+
+        if resume_file is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Resume file not found.",
+            )
+
+        allowed_resume_types = {
+            "application/pdf",
+            "application/msword",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        }
+
+        if resume_file.content_type not in allowed_resume_types:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    "Only PDF, DOC, and DOCX files "
+                    "can be used as a resume."
+                ),
+            )
+
+    # ---------------------------------------------------------
+    # Create profile
+    # ---------------------------------------------------------
 
     profile = UserProfile(
         user_id=current_user.id,
@@ -212,17 +298,48 @@ async def create_my_profile(
         institution=data.institution,
         career_goal=data.career_goal,
         career_interests=data.career_interests,
+
+        # IMPORTANT
+        profile_photo_file_id=(
+            profile_photo_file.id
+            if profile_photo_file is not None
+            else None
+        ),
+
+        # IMPORTANT
+        resume_file_id=(
+            resume_file.id
+            if resume_file is not None
+            else None
+        ),
     )
 
     created_profile = await service.create_profile(
         profile
     )
 
-    return UserProfileResponse.model_validate(
-        created_profile
+    # ---------------------------------------------------------
+    # Reload profile with related files
+    # ---------------------------------------------------------
+
+    result = await session.execute(
+        select(UserProfile)
+        .options(
+            joinedload(UserProfile.profile_photo),
+            joinedload(UserProfile.resume_file),
+        )
+        .where(UserProfile.id == created_profile.id)
     )
 
+    created_profile = result.unique().scalar_one()
 
+    # ---------------------------------------------------------
+    # Return response
+    # ---------------------------------------------------------
+
+    return UserProfileResponse.model_validate(
+        service.build_profile_response(created_profile)
+    )
 # ============================================================
 # UPDATE MY PROFILE
 # ============================================================
@@ -444,9 +561,16 @@ async def get_profile_by_id(
 
     service = UserProfileService(session)
 
-    profile = await service.get_by_id(
-        profile_id
+    result = await session.execute(
+        select(UserProfile)
+        .options(
+            joinedload(UserProfile.profile_photo),
+            joinedload(UserProfile.resume_file),
+        )
+        .where(UserProfile.id == profile_id)
     )
+
+    profile = result.unique().scalar_one_or_none()
 
     if profile is None:
         raise HTTPException(
@@ -454,46 +578,6 @@ async def get_profile_by_id(
             detail="User profile not found.",
         )
 
-    # ---------------------------------------------------------
-    # Get profile photo URL
-    # ---------------------------------------------------------
-
-    profile_photo_url = None
-
-    if profile.profile_photo_file_id is not None:
-
-        result = await session.execute(
-            select(File).where(
-                File.id == profile.profile_photo_file_id,
-                File.is_deleted.is_(False),
-            )
-        )
-
-        profile_photo = result.scalar_one_or_none()
-
-        if profile_photo is not None:
-            profile_photo_url = profile_photo.public_url
-
-    # ---------------------------------------------------------
-    # Return profile
-    # ---------------------------------------------------------
-
-    return UserProfileResponse(
-        id=profile.id,
-        user_id=profile.user_id,
-
-        dob=profile.dob,
-        age=profile.age,
-        profile_category=profile.profile_category,
-        education=profile.education,
-        class_year=profile.class_year,
-        institution=profile.institution,
-        career_goal=profile.career_goal,
-        career_interests=profile.career_interests,
-
-        profile_photo_file_id=profile.profile_photo_file_id,
-        profile_photo_url=profile_photo_url,
-
-        created_at=profile.created_at,
-        updated_at=profile.updated_at,
+    return UserProfileResponse.model_validate(
+        service.build_profile_response(profile)
     )
