@@ -150,7 +150,7 @@ class StorageService:
             result = cloudinary.uploader.upload(
                 contents,
                 public_id=public_id,
-                resource_type="auto",
+                resource_type="raw",
                 overwrite=False,
             )
 
