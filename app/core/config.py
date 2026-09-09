@@ -37,19 +37,20 @@ class Settings(BaseSettings):
     CORS_ORIGINS: str = (
         "http://localhost:3000,"
         "https://careercampus-bd89.onrender.com,"
-        "https://my-mentor-organization.onrender.com,"
-        "https://carrercompass-n2ms.onrender.com"
+        "https://carrercompass-n2ms.onrender.com,"
+        "https://my-mentor-organization.onrender.com"
     )
 
     FRONTEND_LOCAL_URL: str = "http://localhost:3000"
 
     # =========================================================
-    # PRODUCTION FRONTENDS
+    # MAIN PRODUCTION FRONTENDS
+    #
+    # These are the two main frontend applications.
     # =========================================================
 
-    FRONTEND_PRODUCTION_URL: str = (
+    FRONTEND_PRODUCTION_URLS: str = (
         "https://careercampus-bd89.onrender.com,"
-        "https://my-mentor-organization.onrender.com,"
         "https://carrercompass-n2ms.onrender.com"
     )
 
@@ -122,12 +123,28 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
+    # =========================================================
+    # CORS ORIGINS LIST
+    # =========================================================
+
     @property
     def cors_origins_list(self) -> list[str]:
         return [
             origin.strip()
             for origin in self.CORS_ORIGINS.split(",")
             if origin.strip()
+        ]
+
+    # =========================================================
+    # PRODUCTION FRONTENDS LIST
+    # =========================================================
+
+    @property
+    def frontend_production_urls_list(self) -> list[str]:
+        return [
+            url.strip()
+            for url in self.FRONTEND_PRODUCTION_URLS.split(",")
+            if url.strip()
         ]
 
 
