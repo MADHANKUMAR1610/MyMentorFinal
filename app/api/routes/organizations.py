@@ -195,7 +195,7 @@ async def get_my_jobs_list(
         page=page,
         page_size=page_size,
         search=search,
-        status=status,
+        job_status=status,
     )# ============================================================
 # ATS CONFIGURATION
 # ============================================================

@@ -595,7 +595,7 @@ class OrganizationJobService:
         page: int = 1,
         page_size: int = 20,
         search: str | None = None,
-        status: str | None = None,
+        job_status: str | None = None,
     ):
 
         # --------------------------------------------------------
@@ -624,7 +624,7 @@ class OrganizationJobService:
                 page=page,
                 page_size=page_size,
                 search=search,
-                status=status,
+                status=job_status,
             )
         )
 
