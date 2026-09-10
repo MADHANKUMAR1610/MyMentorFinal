@@ -9,7 +9,8 @@ from app.repositories.job_application_repository import (
 from app.services.audit_log_service import AuditLogService
 from app.services.user_profile_service import UserProfileService
 from app.schemas.job_application import JobApplicationResponse
-
+from app.models.job import Job
+from app.services.job_matching_service import JobMatchingService
 
 # ============================================================
 # ALLOWED APPLICATION STATUSES
@@ -50,7 +51,7 @@ class JobApplicationService:
         self.audit_service = AuditLogService(session)
 
         self.user_profile_service = UserProfileService(session)
-
+        self.matching_service = JobMatchingService()
     # ============================================================
     # GET APPLICATION BY ID
     # ============================================================
@@ -265,7 +266,41 @@ class JobApplicationService:
             raise ValueError(
                 "You have already applied for this job."
             )
+        # ============================================================
+        # CALCULATE ATS + MATCH SCORE
+        # ============================================================
 
+        job = await self.session.get(
+            Job,
+            application.job_id,
+        )
+
+        if job is not None and application.applicant_user_id:
+
+            profile = (
+                await self.user_profile_service
+                .get_by_user_id(
+                    application.applicant_user_id
+                )
+            )
+
+            if profile:
+
+                application.ats_score = (
+                    self.matching_service.calculate_ats_score(
+                        job=job,
+                        profile=profile,
+                        application_experience=application.experience,
+                    )
+                )
+
+                application.match_score = (
+                    self.matching_service.calculate_match_score(
+                        job=job,
+                        profile=profile,
+                        application_experience=application.experience,
+                    )
+                )
         # --------------------------------------------------------
         # Create application
         # --------------------------------------------------------
