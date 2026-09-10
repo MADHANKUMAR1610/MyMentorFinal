@@ -1,10 +1,16 @@
 import uuid
 
 from app.models.user_profile import UserProfile
+from app.models.user import User
 from app.repositories.user_profile_repository import (
     UserProfileRepository,
 )
+from datetime import date, timedelta
+from sqlalchemy import select, func
 
+from app.models.progress import Progress
+from app.models.level import Level
+from app.models.job_application import JobApplication
 
 class UserProfileService:
 
@@ -191,46 +197,249 @@ class UserProfileService:
     async def get_profile_summary(
         self,
         user_id: uuid.UUID,
-    ) -> dict:
+    ):
+        """
+        Calculate the user's profile summary dynamically.
+        """
 
-        profile = await self.repository.get_by_user_id(
-            user_id
+        # =========================================================
+        # GET USER
+        # =========================================================
+
+        user_result = await self.db.execute(
+            select(User).where(
+                User.id == user_id
+            )
         )
 
-        if not profile:
-            return {
-                "score": 0,
-                "badge": "Beginner",
-                "name": "",
-                "xp": 0,
-                "day_streak": 0,
-                "completed_levels": 0,
-                "total_levels": 0,
-                "applications": 0,
-            }
+        user = user_result.scalar_one_or_none()
 
-        score = self._calculate_profile_score(
-            profile
+        if user is None:
+            raise ValueError("User not found")
+
+        # =========================================================
+        # GET PROFILE
+        # =========================================================
+
+        profile_result = await self.db.execute(
+            select(UserProfile).where(
+                UserProfile.user_id == user_id
+            )
         )
+
+        profile = profile_result.scalar_one_or_none()
+
+        # =========================================================
+        # COMPLETED LEVELS
+        # =========================================================
+
+        completed_result = await self.db.execute(
+            select(func.count(Progress.id))
+            .where(
+                Progress.user_id == user_id,
+                Progress.completed.is_(True),
+            )
+        )
+
+        completed_levels = completed_result.scalar_one() or 0
+
+        # =========================================================
+        # TOTAL LEVELS
+        # =========================================================
+
+        total_levels_result = await self.db.execute(
+            select(func.count(Level.id))
+        )
+
+        total_levels = total_levels_result.scalar_one() or 0
+
+        # =========================================================
+        # XP
+        # =========================================================
+
+        xp_result = await self.db.execute(
+            select(
+                func.coalesce(
+                    func.sum(Level.xp),
+                    0
+                )
+            )
+            .join(
+                Progress,
+                Progress.level_id == Level.id
+            )
+            .where(
+                Progress.user_id == user_id,
+                Progress.completed.is_(True),
+            )
+        )
+
+        xp = xp_result.scalar_one() or 0
+
+        # =========================================================
+        # JOB APPLICATIONS
+        # =========================================================
+
+        applications_result = await self.db.execute(
+            select(func.count(JobApplication.id))
+            .where(
+                JobApplication.applicant_user_id == user_id
+            )
+        )
+
+        applications = applications_result.scalar_one() or 0
+
+        # =========================================================
+        # DAILY LOGIN STREAK
+        # =========================================================
+        #
+        # Streak is based on USER LOGIN activity,
+        # NOT Progress activity.
+        #
+        # User.streak      -> current consecutive login days
+        # User.last_active -> last date the user was active
+        #
+
+        day_streak = int(user.streak or 0)
+
+        # =========================================================
+        # PROFILE SCORE
+        # =========================================================
+
+        profile_score = (
+            self._calculate_profile_score(profile)
+            if profile
+            else 0
+        )
+
+        # =========================================================
+        # BADGE
+        # =========================================================
+
+        badge = self._get_profile_badge(
+            profile_score
+        )
+
+        # =========================================================
+        # RETURN RESPONSE
+        # =========================================================
 
         return {
-            "score": score,
-            "badge": self._get_profile_badge(
-                score
-            ),
-
-            # Temporary value until we connect
-            # the User model
-            "name": "",
-
-            "xp": 0,
-            "day_streak": 0,
-            "completed_levels": 0,
-            "total_levels": 0,
-
-            # Number of applications, not a list
-            "applications": 0,
+            "id": user_id,
+            "name": user.name or "",
+            "score": profile_score,
+            "badge": badge,
+            "xp": int(xp),
+            "day_streak": day_streak,
+            "completed_levels": int(completed_levels),
+            "total_levels": int(total_levels),
+            "applications": int(applications),
         }
+
+    # =========================================================
+    # UPDATE DAILY LOGIN STREAK
+    # =========================================================
+# ============================================================
+# UPDATE DAILY LOGIN STREAK
+# ============================================================
+
+    async def update_login_streak(
+    self,
+    user_id: uuid.UUID,
+):
+        """
+        Update the user's daily login streak.
+
+        Rules:
+        - First login                 -> streak = 1
+        - Login again same day        -> streak unchanged
+        - Login next consecutive day  -> streak + 1
+        - Miss one or more days       -> streak = 1
+        """
+
+        # ========================================================
+        # GET USER
+        # ========================================================
+
+        user_result = await self.db.execute(
+            select(User).where(
+                User.id == user_id
+            )
+        )
+
+        user = user_result.scalar_one_or_none()
+
+        if user is None:
+            raise ValueError("User not found")
+
+        # ========================================================
+        # TODAY
+        # ========================================================
+
+        today = date.today()
+        today_str = today.isoformat()
+
+        yesterday_str = (
+            today - timedelta(days=1)
+        ).isoformat()
+
+        # ========================================================
+        # FIRST LOGIN
+        # ========================================================
+
+        if not user.last_active:
+
+            user.streak = 1
+            user.last_active = today_str
+
+        else:
+
+            last_active = str(
+                user.last_active
+            )
+
+            # ====================================================
+            # ALREADY LOGGED IN TODAY
+            # ====================================================
+
+            if last_active == today_str:
+
+                # Do nothing.
+                # Multiple logins on the same day
+                # do not increase the streak.
+
+                pass
+
+            # ====================================================
+            # LOGGED IN YESTERDAY
+            # ====================================================
+
+            elif last_active == yesterday_str:
+
+                user.streak = (
+                    user.streak or 0
+                ) + 1
+
+                user.last_active = today_str
+
+            # ====================================================
+            # MISSED ONE OR MORE DAYS
+            # ====================================================
+
+            else:
+
+                user.streak = 1
+                user.last_active = today_str
+
+        # ========================================================
+        # SAVE
+        # ========================================================
+
+        await self.db.commit()
+
+        await self.db.refresh(user)
+
+        return int(user.streak or 0)
 
     # =========================================================
     # CALCULATE PROFILE SCORE
@@ -238,7 +447,7 @@ class UserProfileService:
 
     def _calculate_profile_score(
         self,
-        profile: UserProfile,
+        profile,
     ) -> int:
 
         total_fields = 8

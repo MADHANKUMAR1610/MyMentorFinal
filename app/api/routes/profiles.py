@@ -42,22 +42,11 @@ async def get_my_profile_summary(
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
 ):
-    """
-    Get the profile summary displayed at the top
-    of the MyMentor profile page.
-    """
-
     service = UserProfileService(session)
-
-    profile = await service.get_by_user_id(
-        current_user.id
-    )
 
     return await service.get_profile_summary(
         user_id=current_user.id,
     )
-
-
 # ============================================================
 # GET MY SCORE BREAKDOWN
 # ============================================================
