@@ -18,3 +18,4 @@ from app.models.course_enrollment import CourseEnrollment
 from app.models.interview import Interview
 from app.models.organization_ats_config import OrganizationATSConfig
 from app.models.audit_log import AuditLog
+from app.models.career_search_knowledge import CareerSearchKnowledge

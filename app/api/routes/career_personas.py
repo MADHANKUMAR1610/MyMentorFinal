@@ -15,9 +15,8 @@ from app.schemas.career_persona import (
     CareerPersonaFlowResponse,
     CareerPersonaUpdate,
 )
-
 from app.services.career_persona_service import CareerPersonaService
-from app.services.gemini_service import GeminiService
+from app.services.career_search_service import CareerSearchService
 
 
 # ============================================================
@@ -51,22 +50,22 @@ async def create_my_career_persona(
     )
 
     # ========================================================
-    # GEMINI
-    # DO NOT CHANGE THIS
+    # CAREER SEARCH
+    # DATABASE CACHE → GEMINI FALLBACK
     # ========================================================
 
     try:
+        career_search_service = CareerSearchService(session)
 
-        gemini_service = GeminiService()
-
-        ai_result = await gemini_service.generate_career_persona(
-            goal=data.goal,
+        search_result = await career_search_service.search(
+            query=data.goal,
             profile={},
             answers=data.answers,
         )
 
-    except Exception as exc:
+        ai_result = search_result["career"]
 
+    except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(exc),
