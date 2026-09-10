@@ -1,21 +1,43 @@
+
 from fastapi import APIRouter
 
-from app.api.routes.auth import router as auth_router
-from app.api.routes.users import router as users_router
-from app.api.routes.profiles import router as profiles_router
+from app.api.routes.auth import (
+    router as auth_router,
+)
+
+from app.api.routes.users import (
+    router as users_router,
+)
+
+from app.api.routes.profiles import (
+    router as profiles_router,
+)
+
 from app.api.routes.career_personas import (
     router as career_personas_router,
 )
+
+from app.api.routes.career_persona_history import (
+    router as career_persona_history_router,
+)
+
 from app.api.routes.audit_logs import (
     router as audit_logs_router,
 )
-from app.api.routes.mentors import router as mentors_router
+
+from app.api.routes.mentors import (
+    router as mentors_router,
+)
+
 from app.api.routes.mentor_applications import (
     router as mentor_applications_router,
 )
-from app.api.routes.bookings import router as bookings_router
-from app.api.routes import dashboard
 
+from app.api.routes.bookings import (
+    router as bookings_router,
+)
+
+from app.api.routes import dashboard
 
 from app.api.routes.companies import (
     router as companies_router,
@@ -24,6 +46,7 @@ from app.api.routes.companies import (
 from app.api.routes.company_applications import (
     router as company_applications_router,
 )
+
 from app.api.routes.notifications import (
     router as notifications_router,
 )
@@ -107,9 +130,12 @@ from app.api.routes.organization_analytics import (
 from app.api.routes.organization_dashboard import (
     router as organization_dashboard_router,
 )
+
 from app.api.routes.public_jobs import (
     router as public_jobs_router,
 )
+
+
 # ============================================================
 # MAIN API ROUTER
 # ============================================================
@@ -125,8 +151,16 @@ api_router.include_router(
     course_journey_router
 )
 
+
+# ============================================================
+# PUBLIC JOBS
+# ============================================================
+
 api_router.include_router(
-    public_jobs_router  )
+    public_jobs_router
+)
+
+
 # ============================================================
 # CAREER CALENDAR
 # ============================================================
@@ -134,6 +168,8 @@ api_router.include_router(
 api_router.include_router(
     career_calendar_router
 )
+
+
 # ============================================================
 # NOTIFICATIONS
 # ============================================================
@@ -141,6 +177,7 @@ api_router.include_router(
 api_router.include_router(
     notifications_router
 )
+
 
 # ============================================================
 # CODE EXECUTION
@@ -220,6 +257,15 @@ api_router.include_router(
 
 api_router.include_router(
     career_personas_router
+)
+
+
+# ============================================================
+# CAREER PERSONA HISTORY
+# ============================================================
+
+api_router.include_router(
+    career_persona_history_router
 )
 
 

@@ -8,6 +8,12 @@ from app.database.database import get_db
 
 from app.models.user import User
 from app.models.career_persona import CareerPersona
+from app.models.career_persona_history import (
+    CareerPersonaHistory,
+)
+from app.services.career_persona_history_service import (
+    CareerPersonaHistoryService,
+)
 
 from app.schemas.career_persona import (
     CareerPersonaCreate,
@@ -43,7 +49,19 @@ async def create_my_career_persona(
     session: AsyncSession = Depends(get_db),
 ):
 
+    # ========================================================
+    # SERVICES
+    # ========================================================
+
     service = CareerPersonaService(session)
+
+    history_service = CareerPersonaHistoryService(
+        session
+    )
+
+    # ========================================================
+    # GET EXISTING PERSONA
+    # ========================================================
 
     existing_persona = await service.get_by_user_id(
         current_user.id
@@ -55,7 +73,10 @@ async def create_my_career_persona(
     # ========================================================
 
     try:
-        career_search_service = CareerSearchService(session)
+
+        career_search_service = CareerSearchService(
+            session
+        )
 
         search_result = await career_search_service.search(
             query=data.goal,
@@ -66,13 +87,14 @@ async def create_my_career_persona(
         ai_result = search_result["career"]
 
     except Exception as exc:
+
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(exc),
         )
 
     # ========================================================
-    # CREATE
+    # CREATE FIRST CAREER PERSONA
     # ========================================================
 
     if existing_persona is None:
@@ -84,7 +106,6 @@ async def create_my_career_persona(
             answers=data.answers,
             result=ai_result,
 
-            # IMPORTANT
             # New career result is NOT visible initially
             is_profile_visible=False,
         )
@@ -93,23 +114,89 @@ async def create_my_career_persona(
             persona
         )
 
+        # ====================================================
+        # SAVE FIRST CAREER PERSONA TO HISTORY
+        # ====================================================
+
+        history = CareerPersonaHistory(
+            user_id=current_user.id,
+            career_persona_id=persona.id,
+            goal=persona.goal,
+            profile=persona.profile or {},
+            answers=persona.answers or {},
+            result=persona.result or {},
+            is_profile_visible=(
+                persona.is_profile_visible
+            ),
+        )
+
+        await history_service.create_history(
+            history
+        )
+
     # ========================================================
-    # UPDATE EXISTING
+    # UPDATE EXISTING CAREER PERSONA
     # ========================================================
 
     else:
 
+        # ====================================================
+        # SAVE OLD VERSION TO HISTORY
+        # ====================================================
+
+        old_history = CareerPersonaHistory(
+            user_id=current_user.id,
+            career_persona_id=existing_persona.id,
+            goal=existing_persona.goal,
+            profile=existing_persona.profile or {},
+            answers=existing_persona.answers or {},
+            result=existing_persona.result or {},
+            is_profile_visible=(
+                existing_persona.is_profile_visible
+            ),
+        )
+
+        await history_service.create_history(
+            old_history
+        )
+
+        # ====================================================
+        # UPDATE CURRENT PERSONA
+        # ====================================================
+
         existing_persona.goal = data.goal
+
         existing_persona.profile = {}
+
         existing_persona.answers = data.answers
+
         existing_persona.result = ai_result
 
-        # IMPORTANT
-        # Every new AI result requires a new YES/NO decision
+        # New AI result requires new YES/NO decision
         existing_persona.is_profile_visible = False
 
         persona = await service.update_persona(
             existing_persona
+        )
+
+        # ====================================================
+        # SAVE NEW VERSION TO HISTORY
+        # ====================================================
+
+        new_history = CareerPersonaHistory(
+            user_id=current_user.id,
+            career_persona_id=persona.id,
+            goal=persona.goal,
+            profile=persona.profile or {},
+            answers=persona.answers or {},
+            result=persona.result or {},
+            is_profile_visible=(
+                persona.is_profile_visible
+            ),
+        )
+
+        await history_service.create_history(
+            new_history
         )
 
     # ========================================================
@@ -117,6 +204,7 @@ async def create_my_career_persona(
     # ========================================================
 
     return CareerPersonaFlowResponse(
+
         requires_class_selection=False,
 
         career_persona=CareerPersonaResponse.model_validate(
@@ -130,7 +218,6 @@ async def create_my_career_persona(
             "on your Profile?"
         ),
     )
-
 
 # ============================================================
 # YES - SHOW CAREER PERSONA ON PROFILE
