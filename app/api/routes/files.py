@@ -6,6 +6,9 @@ from fastapi import (
     UploadFile,
     status,
 )
+from typing import Any, Optional
+
+from pydantic import BaseModel, Field
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,11 +18,17 @@ from app.database.database import get_db
 
 from app.models.user import User
 from app.models.user_profile import UserProfile
-
+from app.schemas.file import (
+    FileUploadResponse,
+    ResumeItemResponse,
+    MyResumesResponse,
+)
 from app.schemas.file import FileUploadResponse
 
 from app.services.file_service import FileService
+from sqlalchemy.orm import selectinload
 
+from app.models.job_application import JobApplication
 
 router = APIRouter(
     prefix="/files",
@@ -312,4 +321,147 @@ async def update_profile_photo(
         file_url=public_url,
         content_type=created_file.content_type,
         size=created_file.size,
+    )
+# =========================================================
+# GET ALL MY RESUMES
+# =========================================================
+
+@router.get(
+    "/me/resumes",
+    response_model=MyResumesResponse,
+)
+async def get_my_resumes(
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+):
+    """
+    Get all resumes belonging to the authenticated user.
+
+    Includes:
+    - Resume currently attached to profile
+    - Resumes used in job applications
+    - Deduplicated list of all resumes
+    """
+
+    # =====================================================
+    # GET PROFILE RESUME
+    # =====================================================
+
+    profile_result = await session.execute(
+        select(UserProfile)
+        .options(
+            selectinload(UserProfile.resume_file)
+        )
+        .where(
+            UserProfile.user_id == current_user.id
+        )
+    )
+
+    profile = profile_result.scalar_one_or_none()
+
+    profile_resume = None
+
+    if (
+        profile
+        and profile.resume_file
+        and not profile.resume_file.is_deleted
+    ):
+        file = profile.resume_file
+
+        profile_resume = ResumeItemResponse(
+            file_id=file.id,
+            file_name=file.original_filename,
+            file_url=file.public_url,
+            content_type=file.content_type,
+            size=file.size,
+            source="profile",
+        )
+
+    # =====================================================
+    # GET APPLICATION RESUMES
+    # =====================================================
+
+    application_result = await session.execute(
+        select(JobApplication)
+        .options(
+            selectinload(JobApplication.resume_file)
+        )
+        .where(
+            JobApplication.applicant_user_id
+            == current_user.id,
+            JobApplication.resume_file_id.is_not(None),
+        )
+        .order_by(
+            JobApplication.created_at.desc()
+        )
+    )
+
+    applications = list(
+        application_result.scalars().all()
+    )
+
+    application_resumes = []
+
+    for application in applications:
+
+        file = application.resume_file
+
+        if not file:
+            continue
+
+        if file.is_deleted:
+            continue
+
+        application_resumes.append(
+            ResumeItemResponse(
+                file_id=file.id,
+                file_name=file.original_filename,
+                file_url=file.public_url,
+                content_type=file.content_type,
+                size=file.size,
+                source="job_application",
+                application_id=application.id,
+                job_id=application.job_id,
+            )
+        )
+
+    # =====================================================
+    # CREATE DEDUPLICATED ALL RESUMES
+    # =====================================================
+
+    all_resumes = []
+
+    seen_file_ids = set()
+
+    # Profile resume first
+    if profile_resume:
+
+        all_resumes.append(
+            profile_resume
+        )
+
+        seen_file_ids.add(
+            profile_resume.file_id
+        )
+
+    # Application resumes
+    for resume in application_resumes:
+
+        if resume.file_id in seen_file_ids:
+            continue
+
+        all_resumes.append(resume)
+
+        seen_file_ids.add(
+            resume.file_id
+        )
+
+    # =====================================================
+    # RETURN
+    # =====================================================
+
+    return MyResumesResponse(
+        profile_resume=profile_resume,
+        application_resumes=application_resumes,
+        all_resumes=all_resumes,
     )

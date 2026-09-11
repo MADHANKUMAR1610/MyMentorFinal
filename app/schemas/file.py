@@ -97,3 +97,19 @@ class FileUploadResponse(BaseModel):
     content_type: str | None
 
     size: int
+class ResumeItemResponse(BaseModel):
+    file_id: UUID
+    file_name: str
+    file_url: str
+    content_type: str | None
+    size: int
+
+    source: str
+    application_id: UUID | None = None
+    job_id: UUID | None = None
+
+
+class MyResumesResponse(BaseModel):
+    profile_resume: ResumeItemResponse | None = None
+    application_resumes: list[ResumeItemResponse] = []
+    all_resumes: list[ResumeItemResponse] = []
