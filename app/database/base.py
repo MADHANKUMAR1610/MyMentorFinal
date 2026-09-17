@@ -23,7 +23,7 @@ from app.models.progress import Progress
 from app.models.master_data import MasterData
 from app.models.file import File
 from app.models.career_calendar import CareerCalendar
-
+from app.models.college import College
 __all__ = [
     "Base",
     "User",
@@ -44,4 +44,5 @@ __all__ = [
     "File",
     "MasterData",
     "CareerCalendar",
+    "college",
 ]

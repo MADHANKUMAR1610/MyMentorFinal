@@ -135,7 +135,9 @@ from app.api.routes.public_jobs import (
     router as public_jobs_router,
 )
 
-
+from app.api.routes.colleges import(
+    router as college_router,
+)
 # ============================================================
 # MAIN API ROUTER
 # ============================================================
@@ -447,3 +449,7 @@ api_router.include_router(
 api_router.include_router(
     progress_router
 )
+
+api_router.include_router(
+    college_router
+                          )

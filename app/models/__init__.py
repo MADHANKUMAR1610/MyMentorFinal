@@ -20,3 +20,4 @@ from app.models.organization_ats_config import OrganizationATSConfig
 from app.models.audit_log import AuditLog
 from app.models.career_search_knowledge import CareerSearchKnowledge
 from app.models.career_persona_history import CareerPersonaHistory
+from app.models.college import College
