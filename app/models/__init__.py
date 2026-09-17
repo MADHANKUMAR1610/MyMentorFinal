@@ -21,3 +21,7 @@ from app.models.audit_log import AuditLog
 from app.models.career_search_knowledge import CareerSearchKnowledge
 from app.models.career_persona_history import CareerPersonaHistory
 from app.models.college import College
+from app.models.college_package import CollegePackage
+from app.models.college_package_course import (
+    CollegePackageCourse,
+)

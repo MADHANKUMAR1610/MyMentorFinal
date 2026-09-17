@@ -16,7 +16,10 @@ from app.models.job_application import JobApplication
 
 from app.models.course import Course
 from app.models.course_enrollment import CourseEnrollment
-
+from app.models.college_package import CollegePackage
+from app.models.college_package_course import (
+    CollegePackageCourse,
+)
 from app.models.level import Level
 from app.models.checkpoint import Checkpoint
 from app.models.progress import Progress
@@ -45,4 +48,6 @@ __all__ = [
     "MasterData",
     "CareerCalendar",
     "college",
+    "CollegePackage",
+    "CollegePackageCourse",
 ]

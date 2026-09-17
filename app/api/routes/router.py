@@ -134,7 +134,9 @@ from app.api.routes.organization_dashboard import (
 from app.api.routes.public_jobs import (
     router as public_jobs_router,
 )
-
+from app.api.routes.college_packages import (
+    router as college_packages_router,
+)
 from app.api.routes.colleges import(
     router as college_router,
 )
@@ -453,3 +455,6 @@ api_router.include_router(
 api_router.include_router(
     college_router
                           )
+api_router.include_router(
+    college_packages_router
+)

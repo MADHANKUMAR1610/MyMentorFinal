@@ -410,3 +410,14 @@ class CourseRepository(BaseRepository[Course]):
         return list(
             result.all()
         )
+    async def get_course_by_ids(
+        self,
+        course_ids: list[UUID],
+    ):
+        result = await self.session.execute(
+            select(self.model).where(
+                self.model.id.in_(course_ids)
+            )
+        )
+
+        return list(result.scalars().all())
