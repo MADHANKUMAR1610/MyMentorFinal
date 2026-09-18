@@ -110,7 +110,9 @@ from app.api.routes.work_experience import (
 from app.api.routes.code_execution import (
     router as code_execution_router,
 )
-
+from app.api.routes.student_college import (
+    router as student_college_router,
+)
 from app.api.routes.organization_applications import (
     router as organization_applications_router,
 )
@@ -136,6 +138,9 @@ from app.api.routes.public_jobs import (
 )
 from app.api.routes.college_packages import (
     router as college_packages_router,
+)
+from app.api.routes.student_courses import (
+    router as student_courses_router,
 )
 from app.api.routes.colleges import(
     router as college_router,
@@ -451,10 +456,15 @@ api_router.include_router(
 api_router.include_router(
     progress_router
 )
-
+api_router.include_router(
+    student_college_router
+)
 api_router.include_router(
     college_router
                           )
 api_router.include_router(
     college_packages_router
+)
+api_router.include_router(
+    student_courses_router
 )

@@ -91,7 +91,19 @@ class User(
         "Company",
         foreign_keys=[company_id],
     )
-
+    college_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey(
+            "colleges.id",
+            ondelete="SET NULL",
+        ),
+        nullable=True,
+        index=True,
+    )
+    college = relationship(
+        "College",
+        foreign_keys=[college_id],
+    )
     # ========================================================
     # ACCOUNT STATUS
     # ========================================================
