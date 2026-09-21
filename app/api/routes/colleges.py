@@ -61,24 +61,12 @@ async def create_college(
     )
 
     # --------------------------------------------------------
-    # CHECK DUPLICATE CODE
+    # GENERATE UNIQUE COLLEGE CODE
     # --------------------------------------------------------
 
-    existing_college = (
-        await service.get_by_code(
-            data.code
-        )
+    code = await service.generate_unique_code(
+        data.name.strip()
     )
-
-    if existing_college is not None:
-
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=(
-                "A college with this code "
-                "already exists."
-            ),
-        )
 
     # --------------------------------------------------------
     # CREATE
@@ -86,7 +74,7 @@ async def create_college(
 
     college = College(
         name=data.name.strip(),
-        code=data.code,
+        code=code,
         college_type=data.college_type,
         established_year=data.established_year,
         university_affiliation=(
@@ -284,32 +272,7 @@ async def update_college(
             detail="College not found.",
         )
 
-    # --------------------------------------------------------
-    # CHECK CODE CHANGE
-    # --------------------------------------------------------
-
-    if data.code is not None:
-
-        existing = (
-            await service.get_by_code(
-                data.code
-            )
-        )
-
-        if (
-            existing is not None
-            and existing.id != college.id
-        ):
-
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=(
-                    "Another college already "
-                    "uses this college code."
-                ),
-            )
-
-        college.code = data.code
+    
 
     # --------------------------------------------------------
     # UPDATE BASIC

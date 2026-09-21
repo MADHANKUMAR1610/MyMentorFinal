@@ -61,7 +61,10 @@ class User(
         String(100),
         nullable=True,
     )
-
+    year: Mapped[str | None] = mapped_column(
+        String(30),
+        nullable=True,
+    )
     designation: Mapped[str | None] = mapped_column(
         String(100),
         nullable=True,
@@ -103,6 +106,12 @@ class User(
     college = relationship(
         "College",
         foreign_keys=[college_id],
+    )
+    student_code: Mapped[str | None] = mapped_column(
+        String(50),
+        unique=True,
+        index=True,
+        nullable=True,
     )
     # ========================================================
     # ACCOUNT STATUS

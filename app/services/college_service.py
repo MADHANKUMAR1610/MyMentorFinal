@@ -6,7 +6,9 @@ from app.models.college import College
 from app.repositories.college_repository import (
     CollegeRepository,
 )
-
+from app.utils.college_code import (
+    generate_college_code,
+)
 
 class CollegeService:
 
@@ -120,4 +122,25 @@ class CollegeService:
 
         await self.repository.delete(
             college
+        )
+    async def generate_unique_code(
+        self,
+        college_name: str,
+    ) -> str:
+
+        for _ in range(20):
+
+            code = generate_college_code(
+                college_name
+            )
+
+            existing = await self.repository.get_by_code(
+                code
+            )
+
+            if existing is None:
+                return code
+
+        raise RuntimeError(
+            "Unable to generate a unique college code."
         )

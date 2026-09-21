@@ -145,6 +145,9 @@ from app.api.routes.student_courses import (
 from app.api.routes.colleges import(
     router as college_router,
 )
+from app.api.routes.student_import import (
+    router as student_import_router,
+)
 # ============================================================
 # MAIN API ROUTER
 # ============================================================
@@ -467,4 +470,7 @@ api_router.include_router(
 )
 api_router.include_router(
     student_courses_router
+)
+api_router.include_router(
+    student_import_router
 )

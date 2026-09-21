@@ -36,11 +36,7 @@ class CollegeCreate(BaseModel):
         max_length=255,
     )
 
-    code: str = Field(
-        ...,
-        min_length=2,
-        max_length=50,
-    )
+    
 
     college_type: str | None = None
 
@@ -132,10 +128,7 @@ class CollegeCreate(BaseModel):
     # VALIDATORS
     # ========================================================
 
-    @field_validator("code")
-    @classmethod
-    def validate_code(cls, value: str) -> str:
-        return value.strip().upper()
+    
 
     @field_validator("email")
     @classmethod

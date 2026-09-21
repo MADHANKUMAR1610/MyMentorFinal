@@ -193,3 +193,30 @@ class UserRepository(BaseRepository[User]):
                 break
 
         return streak
+    async def get_by_student_code(
+        self,
+        student_code: str,
+    ) -> User | None:
+
+        result = await self.session.execute(
+            select(User).where(
+                User.student_code == student_code
+            )
+        )
+
+        return result.scalar_one_or_none()
+    async def get_students_by_college(
+        self,
+        college_id: UUID,
+    ) -> list[User]:
+
+        result = await self.session.execute(
+            select(User)
+            .where(
+                User.college_id == college_id,
+                User.role == "student",
+            )
+            .order_by(User.created_at.asc())
+        )
+
+        return list(result.scalars().all())
