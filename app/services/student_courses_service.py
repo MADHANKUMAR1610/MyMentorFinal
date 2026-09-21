@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.college_package import CollegePackage
 from app.models.college_package_course import CollegePackageCourse
+from app.models.college import College
 from app.models.course import Course
 from app.models.course_enrollment import CourseEnrollment
 from app.models.user import User
@@ -135,46 +136,41 @@ class StudentCoursesService:
         college_name = None
         college_code = None
 
-        if user.college:
+        if user.college_id:
+            college_result = await self.session.execute(
+                select(College).where(
+                    College.id == user.college_id
+                )
+            )
 
-            college_name = user.college.name
-            college_code = user.college.code
+            college = college_result.scalar_one_or_none()
+
+            if college:
+                college_name = college.name
+                college_code = college.code
 
         # ====================================================
         # 4. COMBINE COURSES
         # ====================================================
 
         combined_courses = []
-
         added_course_ids: set[UUID] = set()
 
         # Package courses first
         for course in package_courses:
-
             if course["course_id"] in added_course_ids:
                 continue
 
-            added_course_ids.add(
-                course["course_id"]
-            )
-
-            combined_courses.append(
-                course
-            )
+            added_course_ids.add(course["course_id"])
+            combined_courses.append(course)
 
         # Then individually enrolled courses
         for course in enrolled_courses:
-
             if course["course_id"] in added_course_ids:
                 continue
 
-            added_course_ids.add(
-                course["course_id"]
-            )
-
-            combined_courses.append(
-                course
-            )
+            added_course_ids.add(course["course_id"])
+            combined_courses.append(course)
 
         # ====================================================
         # 5. RETURN
@@ -184,10 +180,7 @@ class StudentCoursesService:
             "college_id": user.college_id,
             "college_name": college_name,
             "college_code": college_code,
-
             "package_courses": package_courses,
-
             "enrolled_courses": enrolled_courses,
-
             "courses": combined_courses,
         }
