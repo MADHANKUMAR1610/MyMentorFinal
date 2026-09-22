@@ -7,11 +7,13 @@ from pydantic import BaseModel, Field
 # COLLEGE CODE REQUEST
 # ============================================================
 
-class StudentCollegeCodeRequest(BaseModel):
 
-    college_code: str = Field(
+
+
+class StudentCodeRequest(BaseModel):
+    student_code: str = Field(
         ...,
-        min_length=2,
+        min_length=5,
         max_length=50,
     )
 

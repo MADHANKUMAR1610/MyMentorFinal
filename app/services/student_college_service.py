@@ -1,107 +1,102 @@
-from uuid import UUID
-
 from fastapi import HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
+from app.models.college import College
 from app.models.user import User
-from app.repositories.college_repository import (
-    CollegeRepository,
-)
 
 
 class StudentCollegeService:
 
-    def __init__(
-        self,
-        session: AsyncSession,
-    ):
+    def __init__(self, session):
         self.session = session
 
-        self.college_repository = (
-            CollegeRepository(session)
-        )
-
-    # ========================================================
-    # LINK STUDENT TO COLLEGE
-    # ========================================================
-
-    async def link_college(
+    async def link_college_by_student_code(
         self,
-        user: User,
-        college_code: str,
-    ):
+        current_user: User,
+        student_code: str,
+    ) -> College:
 
-        # ----------------------------------------------------
-        # STUDENT CHECK
-        # ----------------------------------------------------
-
-        if user.role != "student":
-
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=(
-                    "Only students can link "
-                    "a college."
-                ),
-            )
-
-        # ----------------------------------------------------
-        # CLEAN CODE
-        # ----------------------------------------------------
-
-        code = college_code.strip().upper()
+        code = student_code.strip().upper()
 
         if not code:
-
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="College code is required.",
+                detail="Student ID is required.",
             )
 
-        # ----------------------------------------------------
-        # FIND COLLEGE
-        # ----------------------------------------------------
+        # --------------------------------------------------
+        # FIND STUDENT BY STUDENT CODE
+        # --------------------------------------------------
 
-        college = (
-            await self.college_repository.get_by_code(
-                code
+        result = await self.session.execute(
+            select(User).where(
+                User.student_code == code
             )
         )
 
-        if college is None:
+        student = result.scalar_one_or_none()
 
+        if student is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=(
-                    "Invalid college code. "
-                    "College not found."
-                ),
+                detail="Invalid student ID.",
             )
 
-        # ----------------------------------------------------
+        # --------------------------------------------------
+        # MAKE SURE THE CODE BELONGS TO LOGGED-IN USER
+        # --------------------------------------------------
+
+        if student.id != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="This student ID does not belong to the logged-in user.",
+            )
+
+        # --------------------------------------------------
+        # STUDENT MUST HAVE A COLLEGE
+        # --------------------------------------------------
+
+        if student.college_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="No college is assigned to this student.",
+            )
+
+        # --------------------------------------------------
+        # FIND COLLEGE
+        # --------------------------------------------------
+
+        college_result = await self.session.execute(
+            select(College).where(
+                College.id == student.college_id
+            )
+        )
+
+        college = college_result.scalar_one_or_none()
+
+        if college is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="College not found.",
+            )
+
+        # --------------------------------------------------
         # CHECK COLLEGE STATUS
-        # ----------------------------------------------------
+        # --------------------------------------------------
 
-        if college.status != "active":
-
+        if college.status.lower() != "active":
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=(
-                    "This college is currently "
-                    "not active."
-                ),
+                detail="This college is currently inactive.",
             )
 
-        # ----------------------------------------------------
-        # LINK COLLEGE
-        # ----------------------------------------------------
+        # --------------------------------------------------
+        # SAVE COLLEGE TO LOGGED-IN USER
+        # --------------------------------------------------
 
-        user.college_id = college.id
+        current_user.college_id = college.id
 
         await self.session.commit()
-
-        await self.session.refresh(
-            user
-        )
+        await self.session.refresh(current_user)
 
         return college

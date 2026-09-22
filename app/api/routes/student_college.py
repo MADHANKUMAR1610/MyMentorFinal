@@ -10,7 +10,7 @@ from app.api.dependencies import (
 from app.database.database import get_db
 from app.models.user import User
 from app.schemas.student_college import (
-    StudentCollegeCodeRequest,
+    StudentCodeRequest,
     StudentCollegeResponse,
 )
 from app.services.student_college_service import (
@@ -27,13 +27,12 @@ router = APIRouter(
 # ============================================================
 # LINK STUDENT TO COLLEGE
 # ============================================================
-
 @router.post(
-    "/college-code",
+    "/student-code",
     response_model=StudentCollegeResponse,
 )
-async def link_student_college(
-    data: StudentCollegeCodeRequest,
+async def link_college_by_student_code(
+    data: StudentCodeRequest,
     current_user: User = Depends(
         get_current_user
     ),
@@ -42,13 +41,11 @@ async def link_student_college(
     ),
 ):
 
-    service = StudentCollegeService(
-        session
-    )
+    service = StudentCollegeService(session)
 
-    college = await service.link_college(
-        user=current_user,
-        college_code=data.college_code,
+    college = await service.link_college_by_student_code(
+        current_user=current_user,
+        student_code=data.student_code,
     )
 
     return StudentCollegeResponse(

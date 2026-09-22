@@ -9,7 +9,7 @@ from app.models.user import User
 from app.models.progress import Progress
 from app.models.course_enrollment import CourseEnrollment
 from app.repositories.base import BaseRepository
-
+from app.models.college import College
 
 class UserRepository(BaseRepository[User]):
 
@@ -59,18 +59,33 @@ class UserRepository(BaseRepository[User]):
     # =========================================================
 
     async def get_students_with_progress(
-        self,
-        *,
-        skip: int = 0,
-        limit: int = 100,
-    ):
+    self,
+    *,
+    skip: int = 0,
+    limit: int = 100,
+):
         result = await self.session.execute(
             select(
                 User,
 
-            # ---------------------------------------------
-            # COMPLETED LEVELS
-            # ---------------------------------------------
+                # ---------------------------------------------
+                # COLLEGE DETAILS
+                # ---------------------------------------------
+                College.id.label(
+                    "college_id"
+                ),
+
+                College.name.label(
+                    "college_name"
+                ),
+
+                College.code.label(
+                    "college_code"
+                ),
+
+                # ---------------------------------------------
+                # COMPLETED LEVELS
+                # ---------------------------------------------
                 func.count(
                     func.distinct(
                         Progress.level_id
@@ -83,9 +98,9 @@ class UserRepository(BaseRepository[User]):
                     "completed_levels"
                 ),
 
-            # ---------------------------------------------
-            # ENROLLED COURSES
-            # ---------------------------------------------
+                # ---------------------------------------------
+                # ENROLLED COURSES
+                # ---------------------------------------------
                 func.count(
                     func.distinct(
                         CourseEnrollment.course_id
@@ -96,20 +111,28 @@ class UserRepository(BaseRepository[User]):
                 ),
             )
 
-        # ---------------------------------------------
-        # PROGRESS
-        # ---------------------------------------------
+            # ---------------------------------------------
+            # PROGRESS
+            # ---------------------------------------------
             .outerjoin(
                 Progress,
                 Progress.user_id == User.id,
             )
 
-        # ---------------------------------------------
-        # COURSE ENROLLMENTS
-        # ---------------------------------------------
+            # ---------------------------------------------
+            # COURSE ENROLLMENTS
+            # ---------------------------------------------
             .outerjoin(
                 CourseEnrollment,
                 CourseEnrollment.user_id == User.id,
+            )
+
+            # ---------------------------------------------
+            # COLLEGE
+            # ---------------------------------------------
+            .outerjoin(
+                College,
+                College.id == User.college_id,
             )
 
             .where(
@@ -117,7 +140,10 @@ class UserRepository(BaseRepository[User]):
             )
 
             .group_by(
-                User.id
+                User.id,
+                College.id,
+                College.name,
+                College.code,
             )
 
             .order_by(

@@ -189,6 +189,9 @@ async def get_all_students(
 
     for (
         student,
+        college_id,
+        college_name,
+        college_code,
         completed_levels,
         enrolled_courses,
     ) in rows:
@@ -204,19 +207,38 @@ async def get_all_students(
                 "id": student.id,
                 "name": student.name,
                 "email": student.email,
+
                 "xp": student.xp or 0,
+
                 "streak": streak,
+
                 "levels": (
                     completed_levels
                     or 0
                 ),
+
                 "courses": (
                     enrolled_courses
                     or 0
                 ),
+
+                # ---------------------------------------------
+                # STUDENT CODE
+                # ---------------------------------------------
+                "student_code": (
+                    student.student_code
+                ),
+
+                # ---------------------------------------------
+                # COLLEGE
+                # ---------------------------------------------
+                "college_id": college_id,
+
+                "college_name": college_name,
+
+                "college_code": college_code,
             }
         )
-
     return students
 
 
