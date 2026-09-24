@@ -25,3 +25,10 @@ from app.models.college_package import CollegePackage
 from app.models.college_package_course import (
     CollegePackageCourse,
 )
+from app.models.skill_assessment_category import (
+    SkillAssessmentCategory,
+)
+
+from app.models.skill_assessment_question import (
+    SkillAssessmentQuestion,
+)
