@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -45,7 +47,7 @@ async def get_admin_skillhub_dashboard(
 
 
 # ============================================================
-# STUDENT DASHBOARD
+# LOGGED-IN STUDENT DASHBOARD
 # ============================================================
 
 @router.get(
@@ -67,6 +69,40 @@ async def get_student_skillhub_dashboard(
 
         return await service.get_student_dashboard(
             current_user.id
+        )
+
+    except ValueError as exc:
+
+        raise HTTPException(
+            status_code=404,
+            detail=str(exc),
+        )
+
+
+# ============================================================
+# ADMIN - VIEW PARTICULAR STUDENT SKILLHUB DASHBOARD
+# ============================================================
+
+@router.get(
+    "/student/skillhub/{student_id}",
+    response_model=StudentDashboardResponse,
+)
+async def get_student_skillhub_dashboard_by_id(
+    student_id: UUID,
+    current_user: User = Depends(
+        get_current_admin
+    ),
+    session: AsyncSession = Depends(
+        get_db
+    ),
+):
+
+    service = DashboardService(session)
+
+    try:
+
+        return await service.get_student_dashboard(
+            student_id
         )
 
     except ValueError as exc:
