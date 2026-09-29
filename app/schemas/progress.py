@@ -5,6 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class ProgressCreate(BaseModel):
+
     user_id: UUID
     course_id: UUID
     level_id: UUID
@@ -13,20 +14,32 @@ class ProgressCreate(BaseModel):
         default_factory=list,
     )
 
+    mcqs_answered: list = Field(
+        default_factory=list,
+    )
+
     video_completed: bool = False
+
+    mcqs_completed: bool = False
 
     completed: bool = False
 
 
 class ProgressUpdate(BaseModel):
+
     checkpoints_passed: list | None = None
 
+    mcqs_answered: list | None = None
+
     video_completed: bool | None = None
+
+    mcqs_completed: bool | None = None
 
     completed: bool | None = None
 
 
 class ProgressResponse(BaseModel):
+
     model_config = ConfigDict(
         from_attributes=True,
     )
@@ -35,8 +48,16 @@ class ProgressResponse(BaseModel):
     user_id: UUID
     course_id: UUID
     level_id: UUID
+
     checkpoints_passed: list
+
+    mcqs_answered: list
+
     video_completed: bool
+
+    mcqs_completed: bool
+
     completed: bool
+
     created_at: datetime
     updated_at: datetime

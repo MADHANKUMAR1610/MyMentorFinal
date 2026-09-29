@@ -5,6 +5,45 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 # ============================================================
+# INTRODUCTION MCQ
+# ============================================================
+
+class IntroductionMCQ(BaseModel):
+
+    question: str = Field(
+        min_length=1,
+    )
+
+    options: dict[str, str] = Field(
+        min_length=2,
+    )
+
+    correct_option: str = Field(
+        min_length=1,
+        max_length=1,
+    )
+
+
+# ============================================================
+# THEORY
+# ============================================================
+
+class TheoryContent(BaseModel):
+
+    learning_objectives: str | None = None
+
+    explanation: str | None = None
+
+    best_practices: str | None = None
+
+    common_mistakes: str | None = None
+
+    introduction_mcqs: list[IntroductionMCQ] = Field(
+        default_factory=list,
+    )
+
+
+# ============================================================
 # CREATE LEVEL
 # ============================================================
 
@@ -56,12 +95,14 @@ class LevelCreate(BaseModel):
         max_length=50,
     )
 
+    # Existing video
     video: dict = Field(
         default_factory=dict,
     )
 
-    theory: dict = Field(
-        default_factory=dict,
+    # Theory + Introduction MCQs
+    theory: TheoryContent = Field(
+        default_factory=TheoryContent,
     )
 
 
@@ -118,7 +159,7 @@ class LevelUpdate(BaseModel):
 
     video: dict | None = None
 
-    theory: dict | None = None
+    theory: TheoryContent | None = None
 
 
 # ============================================================
@@ -157,16 +198,12 @@ class LevelResponse(BaseModel):
 
     video: dict
 
-    theory: dict
+    theory: TheoryContent
 
     created_at: datetime
 
     updated_at: datetime
 
-
-# ============================================================
-# LEVEL DROPDOWN RESPONSE
-# ============================================================
 
 # ============================================================
 # LEVEL DROPDOWN RESPONSE

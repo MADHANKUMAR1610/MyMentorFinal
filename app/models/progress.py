@@ -36,18 +36,35 @@ class Progress(
         index=True,
     )
 
+    # Existing compiler progress
     checkpoints_passed: Mapped[list] = mapped_column(
         JSONB,
         nullable=False,
         default=list,
     )
 
+    # NEW - MCQ question indexes answered correctly
+    mcqs_answered: Mapped[list] = mapped_column(
+        JSONB,
+        nullable=False,
+        default=list,
+    )
+
+    # Existing video progress
     video_completed: Mapped[bool] = mapped_column(
         Boolean,
         nullable=False,
         default=False,
     )
 
+    # NEW - all MCQs completed
+    mcqs_completed: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+    )
+
+    # Existing level completion
     completed: Mapped[bool] = mapped_column(
         Boolean,
         nullable=False,

@@ -176,7 +176,9 @@ async def create_progress(
         course_id=data.course_id,
         level_id=data.level_id,
         checkpoints_passed=data.checkpoints_passed,
+        mcqs_answered=data.mcqs_answered,
         video_completed=data.video_completed,
+        mcqs_completed=data.mcqs_completed,
         completed=data.completed,
     )
 

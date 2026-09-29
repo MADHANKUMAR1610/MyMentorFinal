@@ -12,7 +12,9 @@ from app.api.routes.users import (
 from app.api.routes.profiles import (
     router as profiles_router,
 )
-
+from app.api.routes.introduction_mcqs import (
+    router as introduction_mcqs_router,
+)
 from app.api.routes.career_personas import (
     router as career_personas_router,
 )
@@ -254,6 +256,12 @@ api_router.include_router(
 
 api_router.include_router(
     files_router
+)
+#============================================================
+#introduction of mcq
+#===========================================================
+api_router.include_router(
+    introduction_mcqs_router
 )
 
 

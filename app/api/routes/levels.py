@@ -77,7 +77,7 @@ async def create_level(
         pass_percentage=data.pass_percentage,
         duration=data.duration,
         video=data.video,
-        theory=data.theory,
+        theory=data.theory.model_dump(),
     )
 
     created_level = await service.create_level(level)
@@ -334,7 +334,7 @@ async def update_level(
         level.video = data.video
 
     if data.theory is not None:
-        level.theory = data.theory
+     level.theory = data.theory.model_dump()
 
     updated_level = await service.update_level(level)
 

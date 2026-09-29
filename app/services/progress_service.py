@@ -112,7 +112,9 @@ class ProgressService:
         if existing:
             existing.course_id = progress.course_id
             existing.checkpoints_passed = progress.checkpoints_passed
+            existing.mcqs_answered = progress.mcqs_answered
             existing.video_completed = progress.video_completed
+            existing.mcqs_completed = progress.mcqs_completed
             existing.completed = progress.completed
 
             return await self.repository.update(existing)

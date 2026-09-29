@@ -221,6 +221,7 @@ class CourseJourneyService:
                             level.description
                         ),
                         "video": level.video,
+                        "theory": level.theory or {},
                         "xp": level.xp,
                         "completed_checkpoints": (
                             item[
