@@ -15,6 +15,7 @@ class Settings(BaseSettings):
 
     CODE_EXECUTION_URL: str = "https://ce.judge0.com"
     CODE_EXECUTION_API_KEY: str | None = None
+    SQL_SANDBOX_DATABASE_URL: str
 
     # =========================================================
     # DATABASE

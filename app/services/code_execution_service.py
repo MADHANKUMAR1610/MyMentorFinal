@@ -1,12 +1,15 @@
+import json
 from uuid import UUID
 
 import httpx
 from fastapi import HTTPException, status
 from sqlalchemy import select
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.models.checkpoint import Checkpoint
+from app.models.course import Course
 from app.models.course_enrollment import CourseEnrollment
 from app.models.level import Level
 from app.models.progress import Progress
@@ -22,16 +25,68 @@ class CodeExecutionService:
     Handles student code execution and checkpoint submission.
     """
 
+    # ============================================================
+    # JUDGE0 LANGUAGE IDS
+    # ============================================================
+
     LANGUAGE_IDS = {
+
+        # Python
         "python": 71,
         "python3": 71,
+
+        # Java
         "java": 62,
+
+        # JavaScript
         "javascript": 63,
         "js": 63,
+
+        # C
+        "c": 50,
+
+        # C++
         "c++": 54,
         "cpp": 54,
+
+        # C#
         "c#": 51,
         "csharp": 51,
+
+        # Go
+        "go": 60,
+
+        # PHP
+        "php": 68,
+
+        # Kotlin
+        "kotlin": 78,
+
+        # Rust
+        "rust": 73,
+    }
+
+    # ============================================================
+    # EXECUTION TYPES
+    # ============================================================
+
+    EXECUTION_TYPES = {
+
+        # Judge0
+        "python": "judge0",
+        "java": "judge0",
+        "javascript": "judge0",
+        "c": "judge0",
+        "cpp": "judge0",
+        "csharp": "judge0",
+        "go": "judge0",
+        "php": "judge0",
+        "kotlin": "judge0",
+        "rust": "judge0",
+
+        # Separate execution engines
+        "sql": "sql",
+        "react": "react",
     }
 
     def __init__(
@@ -91,6 +146,31 @@ class CodeExecutionService:
         return level
 
     # ============================================================
+    # GET COURSE
+    # ============================================================
+
+    async def get_course(
+        self,
+        course_id: UUID,
+    ) -> Course:
+
+        result = await self.session.execute(
+            select(Course).where(
+                Course.id == course_id
+            )
+        )
+
+        course = result.scalar_one_or_none()
+
+        if course is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Course not found.",
+            )
+
+        return course
+
+    # ============================================================
     # CHECK ENROLLMENT
     # ============================================================
 
@@ -140,6 +220,30 @@ class CodeExecutionService:
             )
 
         return language_id
+
+    # ============================================================
+    # EXECUTION TYPE
+    # ============================================================
+
+    def get_execution_type(
+        self,
+        language: str,
+    ) -> str:
+
+        execution_type = self.EXECUTION_TYPES.get(
+            language.lower().strip()
+        )
+
+        if execution_type is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    f"Unsupported execution language: "
+                    f"{language}"
+                ),
+            )
+
+        return execution_type
 
     # ============================================================
     # TEST CASE VALUE
@@ -206,7 +310,7 @@ class CodeExecutionService:
         )
 
     # ============================================================
-    # EXECUTE ONE TEST CASE
+    # EXECUTE ONE JUDGE0 TEST CASE
     # ============================================================
 
     async def execute_test_case(
@@ -322,6 +426,354 @@ class CodeExecutionService:
         )
 
     # ============================================================
+    # SQL
+    # ============================================================
+
+    async def execute_sql(
+        self,
+        *,
+        code: str,
+        checkpoint: Checkpoint,
+        test_input: str = "",
+        expected_output: str = "",
+    ) -> tuple[bool, str | None, str | None]:
+
+        from app.database.sql_sandbox import SQLSandboxSessionLocal
+
+        sql = code.strip()
+
+        if not sql:
+            return (
+                False,
+                None,
+                "SQL code cannot be empty.",
+            )
+
+        # ------------------------------------------------------------
+        # BASIC SAFETY CHECK
+        # ------------------------------------------------------------
+
+        forbidden_keywords = [
+            "drop database",
+            "drop schema",
+            "create extension",
+            "alter system",
+            "copy ",
+            "pg_read_file",
+            "pg_write_file",
+            "lo_import",
+            "lo_export",
+            "dblink",
+        ]
+
+        normalized_sql = sql.lower()
+
+        for keyword in forbidden_keywords:
+            if keyword in normalized_sql:
+                return (
+                    False,
+                    None,
+                    f"SQL operation is not allowed: {keyword.strip()}",
+                )
+
+        # ------------------------------------------------------------
+        # OPEN SANDBOX SESSION
+        # ------------------------------------------------------------
+
+        async with SQLSandboxSessionLocal() as session:
+            try:
+                # ----------------------------------------------------
+                # START TRANSACTION
+                # ----------------------------------------------------
+
+                await session.begin()
+
+                # ----------------------------------------------------
+                # LIMIT EXECUTION TIME
+                # ----------------------------------------------------
+
+                await session.execute(
+                    text(
+                        "SET LOCAL statement_timeout = '3000ms'"
+                    )
+                )
+
+                await session.execute(
+                    text(
+                        "SET LOCAL lock_timeout = '1000ms'"
+                    )
+                )
+
+                # ----------------------------------------------------
+                # OPTIONAL SETUP SQL
+                # ----------------------------------------------------
+
+                setup_sql = (
+                    test_input.strip()
+                    if test_input
+                    else ""
+                )
+
+                if setup_sql:
+                    await session.execute(
+                        text(setup_sql)
+                    )
+
+                # ----------------------------------------------------
+                # EXECUTE STUDENT SQL
+                # ----------------------------------------------------
+
+                result = await session.execute(
+                    text(sql)
+                )
+
+                # ----------------------------------------------------
+                # GET RESULT
+                # ----------------------------------------------------
+
+                if result.returns_rows:
+                    rows = result.fetchall()
+
+                    actual_data = [
+                        list(row)
+                        for row in rows
+                    ]
+
+                    actual_output = json.dumps(
+                        actual_data,
+                        ensure_ascii=False,
+                    )
+
+                else:
+                    actual_output = str(
+                        result.rowcount
+                    )
+
+                # ----------------------------------------------------
+                # ROLLBACK STUDENT CHANGES
+                # ----------------------------------------------------
+                # Never permanently save student SQL changes.
+                # ----------------------------------------------------
+
+                await session.rollback()
+
+                normalized_actual = actual_output.strip()
+                normalized_expected = expected_output.strip()
+
+                passed = (
+                    normalized_actual
+                    == normalized_expected
+                )
+
+                return (
+                    passed,
+                    actual_output,
+                    None,
+                )
+
+            except Exception as exc:
+                await session.rollback()
+
+                return (
+                    False,
+                    None,
+                    str(exc),
+                )
+
+    # ============================================================
+    # REACT
+    # ============================================================
+
+    async def execute_react(
+        self,
+        *,
+        code: str,
+        checkpoint: Checkpoint,
+    ) -> tuple[bool, str | None, str | None]:
+
+        if not code or not code.strip():
+            return (
+                False,
+                None,
+                "React code cannot be empty.",
+            )
+
+        code = code.strip()
+
+        react_indicators = [
+            "import React",
+            "from 'react'",
+            'from "react"',
+            "useState",
+            "useEffect",
+            "useContext",
+            "useReducer",
+            "useRef",
+            "export default",
+            "function App",
+            "const App",
+            "class App",
+            "ReactDOM",
+            "createRoot",
+        ]
+
+        if not any(
+            indicator in code
+            for indicator in react_indicators
+        ):
+            return (
+                False,
+                None,
+                (
+                    "Invalid React code. "
+                    "Please create a valid React component."
+                ),
+            )
+
+        jsx_indicators = [
+            "<div",
+            "<h1",
+            "<h2",
+            "<p",
+            "<button",
+            "<input",
+            "<form",
+            "<section",
+            "<main",
+            "<header",
+            "<footer",
+            "<App",
+        ]
+
+        if not any(
+            indicator in code
+            for indicator in jsx_indicators
+        ):
+            return (
+                False,
+                None,
+                (
+                    "React component detected, "
+                    "but JSX markup was not found."
+                ),
+            )
+
+        has_app_component = (
+            "function App" in code
+            or "const App" in code
+            or "class App" in code
+            or "export default App" in code
+        )
+
+        if not has_app_component:
+            return (
+                False,
+                None,
+                (
+                    "React App component not found. "
+                    "Create an App component."
+                ),
+            )
+
+        # The frontend React sandbox is responsible for:
+        # 1. React runtime
+        # 2. JSX compilation
+        # 3. Live preview
+        # 4. Compile/runtime errors
+
+        return (
+            True,
+            code,
+            None,
+        )
+
+    # ============================================================
+    # EXECUTION ROUTER
+    # ============================================================
+
+    async def execute_by_language(
+        self,
+        *,
+        language: str,
+        code: str,
+        checkpoint: Checkpoint,
+        test_input: str = "",
+        expected_output: str = "",
+    ) -> tuple[bool, str | None, str | None]:
+
+        normalized_language = (
+            language.lower().strip()
+        )
+
+        execution_type = self.get_execution_type(
+            normalized_language
+        )
+
+        if execution_type == "judge0":
+
+            return await self.execute_test_case(
+                code=code,
+                language=normalized_language,
+                test_input=test_input,
+                expected_output=expected_output,
+            )
+
+        if execution_type == "sql":
+
+            return await self.execute_sql(
+                code=code,
+                checkpoint=checkpoint,
+                test_input=test_input,
+                expected_output=expected_output,
+            )
+
+        if execution_type == "react":
+
+            return await self.execute_react(
+                code=code,
+                checkpoint=checkpoint,
+            )
+
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                f"Unsupported execution type: "
+                f"{execution_type}"
+            ),
+        )
+
+    # VALIDATE CHECKPOINT LANGUAGE
+    # ============================================================
+
+    def validate_checkpoint_language(
+        self,
+        *,
+        checkpoint: Checkpoint,
+        language: str,
+    ) -> None:
+
+        expected_language = (
+            checkpoint.language
+            .lower()
+            .strip()
+        )
+
+        submitted_language = (
+            language
+            .lower()
+            .strip()
+        )
+
+        if expected_language != submitted_language:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    f"This checkpoint requires "
+                    f"{checkpoint.language}."
+                ),
+            )
+
+    # ============================================================
     # RUN
     # ============================================================
 
@@ -342,10 +794,53 @@ class CodeExecutionService:
             checkpoint.level_id
         )
 
+        course = await self.get_course(
+            level.course_id
+        )
+
         await self.check_enrollment(
             user.id,
-            level.course_id,
+            course.id,
         )
+
+        self.validate_checkpoint_language(
+            checkpoint=checkpoint,
+            language=language,
+        )
+
+        # --------------------------------------------------------
+        # REACT
+        # --------------------------------------------------------
+
+        if language.lower().strip() == "react":
+
+            passed, actual_output, error = (
+                await self.execute_react(
+                    code=code,
+                    checkpoint=checkpoint,
+                )
+            )
+
+            result = TestCaseResult(
+                test_case_number=1,
+                passed=passed,
+                input="",
+                expected_output="React component",
+                actual_output=actual_output,
+                error=error,
+            )
+
+            return CodeExecutionResponse(
+                success=passed,
+                checkpoint_id=checkpoint.id,
+                passed_tests=1 if passed else 0,
+                total_tests=1,
+                results=[result],
+            )
+
+        # --------------------------------------------------------
+        # NORMAL LANGUAGES
+        # --------------------------------------------------------
 
         test_cases = (
             checkpoint.visible_test_cases
@@ -362,7 +857,6 @@ class CodeExecutionService:
             )
 
         results = []
-
         passed_count = 0
 
         for index, test_case in enumerate(
@@ -386,9 +880,10 @@ class CodeExecutionService:
                 passed,
                 actual_output,
                 error,
-            ) = await self.execute_test_case(
+            ) = await self.execute_by_language(
                 code=code,
                 language=language,
+                checkpoint=checkpoint,
                 test_input=test_input,
                 expected_output=expected_output,
             )
@@ -439,88 +934,128 @@ class CodeExecutionService:
             checkpoint.level_id
         )
 
+        course = await self.get_course(
+            level.course_id
+        )
+
         await self.check_enrollment(
             user.id,
-            level.course_id,
+            course.id,
+        )
+
+        self.validate_checkpoint_language(
+            checkpoint=checkpoint,
+            language=language,
         )
 
         # --------------------------------------------------------
-        # GET ALL TEST CASES
+        # REACT
         # --------------------------------------------------------
 
-        visible_tests = (
-            checkpoint.visible_test_cases
-            or []
-        )
+        if language.lower().strip() == "react":
 
-        hidden_tests = (
-            checkpoint.hidden_test_cases
-            or []
-        )
-
-        test_cases = (
-            visible_tests
-            + hidden_tests
-        )
-
-        if not test_cases:
-            raise HTTPException(
-                status_code=400,
-                detail=(
-                    "No test cases are configured "
-                    "for this checkpoint."
-                ),
-            )
-
-        results = []
-
-        passed_count = 0
-
-        for index, test_case in enumerate(
-            test_cases,
-            start=1,
-        ):
-
-            test_input = (
-                self.get_test_input(
-                    test_case
+            passed, actual_output, error = (
+                await self.execute_react(
+                    code=code,
+                    checkpoint=checkpoint,
                 )
             )
 
-            expected_output = (
-                self.get_expected_output(
-                    test_case
-                )
-            )
-
-            (
-                passed,
-                actual_output,
-                error,
-            ) = await self.execute_test_case(
-                code=code,
-                language=language,
-                test_input=test_input,
-                expected_output=expected_output,
-            )
-
-            if passed:
-                passed_count += 1
-
-            results.append(
+            results = [
                 TestCaseResult(
-                    test_case_number=index,
+                    test_case_number=1,
                     passed=passed,
-                    input=test_input,
-                    expected_output=expected_output,
+                    input="",
+                    expected_output="React component",
                     actual_output=actual_output,
                     error=error,
                 )
+            ]
+
+            passed_count = 1 if passed else 0
+            total_tests = 1
+
+        else:
+
+            # ----------------------------------------------------
+            # GET ALL TEST CASES
+            # ----------------------------------------------------
+
+            visible_tests = (
+                checkpoint.visible_test_cases
+                or []
             )
+
+            hidden_tests = (
+                checkpoint.hidden_test_cases
+                or []
+            )
+
+            test_cases = (
+                visible_tests
+                + hidden_tests
+            )
+
+            if not test_cases:
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        "No test cases are configured "
+                        "for this checkpoint."
+                    ),
+                )
+
+            results = []
+            passed_count = 0
+
+            for index, test_case in enumerate(
+                test_cases,
+                start=1,
+            ):
+
+                test_input = (
+                    self.get_test_input(
+                        test_case
+                    )
+                )
+
+                expected_output = (
+                    self.get_expected_output(
+                        test_case
+                    )
+                )
+
+                (
+                    passed,
+                    actual_output,
+                    error,
+                ) = await self.execute_by_language(
+                    code=code,
+                    language=language,
+                    checkpoint=checkpoint,
+                    test_input=test_input,
+                    expected_output=expected_output,
+                )
+
+                if passed:
+                    passed_count += 1
+
+                results.append(
+                    TestCaseResult(
+                        test_case_number=index,
+                        passed=passed,
+                        input=test_input,
+                        expected_output=expected_output,
+                        actual_output=actual_output,
+                        error=error,
+                    )
+                )
+
+            total_tests = len(test_cases)
 
         all_passed = (
             passed_count
-            == len(test_cases)
+            == total_tests
         )
 
         # --------------------------------------------------------
@@ -533,7 +1068,7 @@ class CodeExecutionService:
                 success=False,
                 checkpoint_id=checkpoint.id,
                 passed_tests=passed_count,
-                total_tests=len(test_cases),
+                total_tests=total_tests,
                 results=results,
             )
 
@@ -562,12 +1097,11 @@ class CodeExecutionService:
             )
 
             self.session.add(progress)
-
             await self.session.flush()
 
         passed_checkpoints = [
-            str(checkpoint)
-            for checkpoint in (
+            str(item)
+            for item in (
                 progress.checkpoints_passed
                 or []
             )
@@ -670,7 +1204,7 @@ class CodeExecutionService:
             success=True,
             checkpoint_id=checkpoint.id,
             passed_tests=passed_count,
-            total_tests=len(test_cases),
+            total_tests=total_tests,
             results=results,
             checkpoint_completed=True,
             level_completed=level_completed,
@@ -681,3 +1215,4 @@ class CodeExecutionService:
                 else None
             ),
         )
+
