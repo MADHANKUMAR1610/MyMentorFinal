@@ -12,7 +12,7 @@ class CourseJourneyCheckpointResponse(BaseModel):
     checkpoint_order: int
     at_seconds: int
     title: str
-    xp: int
+    
     completed: bool
 
 
@@ -25,7 +25,7 @@ class CourseJourneyLevelResponse(BaseModel):
     level_number: int
     title: str
     description: str | None = None
-    xp: int
+    
     video: dict
     theory: dict
     completed_checkpoints: int
