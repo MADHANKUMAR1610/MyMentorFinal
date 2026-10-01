@@ -36,10 +36,6 @@ class CheckpointCreate(BaseModel):
         ge=0,
     )
 
-    xp: int = Field(
-        default=25,
-        ge=0,
-    )
 
     retry_limit: int = Field(
         default=5,
@@ -106,10 +102,7 @@ class CheckpointUpdate(BaseModel):
         ge=0,
     )
 
-    xp: int | None = Field(
-        default=None,
-        ge=0,
-    )
+    
 
     retry_limit: int | None = Field(
         default=None,
@@ -151,7 +144,7 @@ class CheckpointResponse(BaseModel):
     objective: str | None
     difficulty: str
     marks: int
-    xp: int
+    
     retry_limit: int
     language: str
     starter_code: dict

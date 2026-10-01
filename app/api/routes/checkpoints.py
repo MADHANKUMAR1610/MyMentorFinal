@@ -76,7 +76,7 @@ async def create_checkpoint(
         objective=data.objective,
         difficulty=data.difficulty,
         marks=data.marks,
-        xp=data.xp,
+        
         retry_limit=data.retry_limit,
         language=data.language,
         starter_code=data.starter_code,
@@ -307,8 +307,7 @@ async def update_checkpoint(
     if data.marks is not None:
         checkpoint.marks = data.marks
 
-    if data.xp is not None:
-        checkpoint.xp = data.xp
+   
 
     if data.retry_limit is not None:
         checkpoint.retry_limit = data.retry_limit

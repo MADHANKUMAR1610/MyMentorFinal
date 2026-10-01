@@ -5,14 +5,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.level import Level
 from app.models.progress import Progress
+from app.models.user import User
 
 from app.repositories.level_repository import LevelRepository
 from app.repositories.progress_repository import ProgressRepository
 from app.repositories.checkpoint_repository import CheckpointRepository
 
+
 class LevelService:
 
     def __init__(self, session: AsyncSession):
+
+        self.session = session
 
         self.repository = LevelRepository(session)
 
@@ -167,7 +171,9 @@ class LevelService:
         # 1. Get level
         # --------------------------------------------------
 
-        level = await self.level_repository.get_by_id(level_id)
+        level = await self.level_repository.get_by_id(
+            level_id
+        )
 
         if not level:
             raise HTTPException(
@@ -176,7 +182,22 @@ class LevelService:
             )
 
         # --------------------------------------------------
-        # 2. Get user's progress
+        # 2. Get user
+        # --------------------------------------------------
+
+        user = await self.session.get(
+            User,
+            user_id,
+        )
+
+        if not user:
+            raise HTTPException(
+                status_code=404,
+                detail="User not found",
+            )
+
+        # --------------------------------------------------
+        # 3. Get user's progress
         # --------------------------------------------------
 
         progress = await self.progress_repository.get_user_level_progress(
@@ -185,7 +206,7 @@ class LevelService:
         )
 
         # --------------------------------------------------
-        # 3. Create progress if it doesn't exist
+        # 4. Create progress if it doesn't exist
         # --------------------------------------------------
 
         if not progress:
@@ -197,13 +218,29 @@ class LevelService:
                 checkpoints_passed=[],
                 video_completed=False,
                 completed=False,
-              
             )
 
-            progress = await self.progress_repository.create(progress)
+            progress = await self.progress_repository.create(
+                progress
+            )
 
         # --------------------------------------------------
-        # 4. Get all checkpoints
+        # 5. Prevent duplicate XP
+        # --------------------------------------------------
+
+        if progress.completed:
+
+            return {
+                "success": True,
+                "level_id": str(level_id),
+                "video_completed": True,
+                "level_completed": True,
+                "xp_earned": 0,
+                "message": "Level already completed",
+            }
+
+        # --------------------------------------------------
+        # 6. Get all checkpoints
         # --------------------------------------------------
 
         checkpoints = await self.checkpoint_repository.get_by_level_id(
@@ -217,15 +254,19 @@ class LevelService:
 
         passed_checkpoint_ids = {
             str(checkpoint_id)
-            for checkpoint_id in (progress.checkpoints_passed or [])
+            for checkpoint_id in (
+                progress.checkpoints_passed or []
+            )
         }
 
         # --------------------------------------------------
-        # 5. Check all checkpoints
+        # 7. Check all checkpoints completed
         # --------------------------------------------------
 
-        all_checkpoints_completed = checkpoint_ids.issubset(
-            passed_checkpoint_ids
+        all_checkpoints_completed = (
+            checkpoint_ids.issubset(
+                passed_checkpoint_ids
+            )
         )
 
         if not all_checkpoints_completed:
@@ -236,41 +277,63 @@ class LevelService:
             )
 
         # --------------------------------------------------
-        # 6. Complete video
+        # 8. Complete video
         # --------------------------------------------------
 
         progress.video_completed = True
 
         # --------------------------------------------------
-        # 7. Complete level
+        # 9. Complete level
         # --------------------------------------------------
 
         progress.completed = True
 
-        # XP
-        progress.xp_earned = level.xp
-
         # --------------------------------------------------
-        # 8. Save
+        # 10. Award exactly 100 XP
         # --------------------------------------------------
 
-        updated_progress = await self.progress_repository.update(
+        XP_REWARD = 100
+
+        user.xp = (
+            user.xp or 0
+        ) + XP_REWARD
+
+        # --------------------------------------------------
+        # 11. Save progress
+        # --------------------------------------------------
+
+        await self.progress_repository.update(
             progress
         )
+
+        # --------------------------------------------------
+        # 12. Flush changes
+        # --------------------------------------------------
+
+        await self.session.flush()
+
+        # --------------------------------------------------
+        # 13. Response
+        # --------------------------------------------------
 
         return {
             "success": True,
             "level_id": str(level_id),
             "video_completed": True,
             "level_completed": True,
-            "xp_earned": level.xp,
+            "xp_earned": XP_REWARD,
             "message": "Level completed successfully",
         }
+
+    # ============================================================
+    # COUNT BY COURSE
+    # ============================================================
 
     async def count_by_course_id(
         self,
         course_id: UUID,
     ) -> int:
+
         return await self.repository.count_by_course_id(
             course_id
         )

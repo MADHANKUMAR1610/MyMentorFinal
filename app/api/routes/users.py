@@ -50,11 +50,50 @@ async def get_my_profile(
     current_user: User = Depends(
         get_current_user
     ),
+    session: AsyncSession = Depends(
+        get_db
+    ),
 ):
 
-    return UserResponse.model_validate(
+    service = UserService(
+        session
+    )
+
+    # --------------------------------------------------------
+    # GET LEARNING STREAK
+    # --------------------------------------------------------
+    # Use the same streak calculation used by
+    # Dashboard / SkillHub.
+    #
+    # This ensures:
+    #
+    # Dashboard  → same streak
+    # Profile    → same streak
+    # Leaderboard → same streak
+    # --------------------------------------------------------
+
+    learning_streak = await (
+        service.get_student_streak(
+            current_user.id
+        )
+    )
+
+    # --------------------------------------------------------
+    # CREATE PROFILE RESPONSE
+    # --------------------------------------------------------
+
+    response = UserResponse.model_validate(
         current_user
     )
+
+    # --------------------------------------------------------
+    # OVERRIDE LOGIN STREAK
+    # WITH LEARNING STREAK
+    # --------------------------------------------------------
+
+    response.streak = learning_streak
+
+    return response
 
 
 # ============================================================
@@ -144,9 +183,27 @@ async def update_my_profile(
         performed_by_name=current_user.name,
     )
 
-    return UserResponse.model_validate(
+    # --------------------------------------------------------
+    # GET LEARNING STREAK
+    # --------------------------------------------------------
+
+    learning_streak = await (
+        service.get_student_streak(
+            updated_user.id
+        )
+    )
+
+    # --------------------------------------------------------
+    # CREATE RESPONSE
+    # --------------------------------------------------------
+
+    response = UserResponse.model_validate(
         updated_user
     )
+
+    response.streak = learning_streak
+
+    return response
 
 
 # ============================================================
@@ -196,6 +253,10 @@ async def get_all_students(
         enrolled_courses,
     ) in rows:
 
+        # ----------------------------------------------------
+        # GET LEARNING STREAK
+        # ----------------------------------------------------
+
         streak = await (
             service.get_student_streak(
                 student.id
@@ -205,7 +266,9 @@ async def get_all_students(
         students.append(
             {
                 "id": student.id,
+
                 "name": student.name,
+
                 "email": student.email,
 
                 "xp": student.xp or 0,
@@ -225,6 +288,7 @@ async def get_all_students(
                 # ---------------------------------------------
                 # STUDENT CODE
                 # ---------------------------------------------
+
                 "student_code": (
                     student.student_code
                 ),
@@ -232,6 +296,7 @@ async def get_all_students(
                 # ---------------------------------------------
                 # COLLEGE
                 # ---------------------------------------------
+
                 "college_id": college_id,
 
                 "college_name": college_name,
@@ -239,6 +304,7 @@ async def get_all_students(
                 "college_code": college_code,
             }
         )
+
     return students
 
 
@@ -275,6 +341,24 @@ async def get_user_by_id(
             detail="User not found.",
         )
 
-    return UserResponse.model_validate(
+    # --------------------------------------------------------
+    # GET LEARNING STREAK
+    # --------------------------------------------------------
+
+    learning_streak = await (
+        service.get_student_streak(
+            user.id
+        )
+    )
+
+    # --------------------------------------------------------
+    # CREATE RESPONSE
+    # --------------------------------------------------------
+
+    response = UserResponse.model_validate(
         user
     )
+
+    response.streak = learning_streak
+
+    return response

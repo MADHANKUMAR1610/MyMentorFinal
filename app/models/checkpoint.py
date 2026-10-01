@@ -64,11 +64,6 @@ class Checkpoint(
         default=25,
     )
 
-    xp: Mapped[int] = mapped_column(
-        Integer,
-        nullable=False,
-        default=25,
-    )
 
     retry_limit: Mapped[int] = mapped_column(
         Integer,
