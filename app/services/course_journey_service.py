@@ -130,7 +130,6 @@ class CourseJourneyService:
                   "checkpoint_order": checkpoint.checkpoint_order,
                   "at_seconds": checkpoint.at_seconds,
                   "title": checkpoint.title,
-                  "xp": checkpoint.xp,
                  "completed": is_completed,
                 }
    
