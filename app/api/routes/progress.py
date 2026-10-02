@@ -1,9 +1,11 @@
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database.database import get_db
+from app.models.level import Level
 from app.models.progress import Progress
 from app.schemas.progress import (
     ProgressCreate,
@@ -18,6 +20,10 @@ router = APIRouter(
     tags=["Progress"],
 )
 
+
+# ============================================================
+# GET PROGRESS BY ID
+# ============================================================
 
 @router.get(
     "/{progress_id}",
@@ -40,6 +46,10 @@ async def get_progress(
     return progress
 
 
+# ============================================================
+# GET PROGRESS BY USER
+# ============================================================
+
 @router.get(
     "/user/{user_id}",
     response_model=list[ProgressResponse],
@@ -58,6 +68,10 @@ async def get_user_progress(
         limit=limit,
     )
 
+
+# ============================================================
+# GET PROGRESS BY COURSE
+# ============================================================
 
 @router.get(
     "/course/{course_id}",
@@ -78,6 +92,10 @@ async def get_course_progress(
     )
 
 
+# ============================================================
+# GET PROGRESS BY LEVEL
+# ============================================================
+
 @router.get(
     "/level/{level_id}",
     response_model=list[ProgressResponse],
@@ -96,6 +114,10 @@ async def get_level_progress(
         limit=limit,
     )
 
+
+# ============================================================
+# GET USER + LEVEL PROGRESS
+# ============================================================
 
 @router.get(
     "/user/{user_id}/level/{level_id}",
@@ -122,6 +144,10 @@ async def get_user_level_progress(
     return progress
 
 
+# ============================================================
+# GET COMPLETED PROGRESS
+# ============================================================
+
 @router.get(
     "/user/{user_id}/completed",
     response_model=list[ProgressResponse],
@@ -140,6 +166,10 @@ async def get_completed_progress(
         limit=limit,
     )
 
+
+# ============================================================
+# GET INCOMPLETE PROGRESS
+# ============================================================
 
 @router.get(
     "/user/{user_id}/incomplete",
@@ -160,6 +190,10 @@ async def get_incomplete_progress(
     )
 
 
+# ============================================================
+# CREATE PROGRESS
+# ============================================================
+
 @router.post(
     "",
     response_model=ProgressResponse,
@@ -169,21 +203,73 @@ async def create_progress(
     data: ProgressCreate,
     db: AsyncSession = Depends(get_db),
 ):
-    service = ProgressService(db)
+    # --------------------------------------------------------
+    # 1. Find the level
+    # --------------------------------------------------------
+
+    result = await db.execute(
+        select(Level).where(
+            Level.id == data.level_id
+        )
+    )
+
+    level = result.scalar_one_or_none()
+
+    if level is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Level not found",
+        )
+
+    # --------------------------------------------------------
+    # 2. IMPORTANT
+    #
+    # Never trust course_id sent by frontend.
+    #
+    # A level already belongs to a specific course.
+    # Therefore we get course_id directly from the level.
+    # --------------------------------------------------------
+
+    correct_course_id = level.course_id
+
+    # --------------------------------------------------------
+    # 3. Create Progress object
+    # --------------------------------------------------------
 
     progress = Progress(
         user_id=data.user_id,
-        course_id=data.course_id,
+
+        # IMPORTANT:
+        # Use the course_id from the level
+        course_id=correct_course_id,
+
         level_id=data.level_id,
+
         checkpoints_passed=data.checkpoints_passed,
+
         mcqs_answered=data.mcqs_answered,
+
         video_completed=data.video_completed,
+
         mcqs_completed=data.mcqs_completed,
+
         completed=data.completed,
     )
 
-    return await service.create_progress(progress)
+    # --------------------------------------------------------
+    # 4. Send to service
+    # --------------------------------------------------------
 
+    service = ProgressService(db)
+
+    return await service.create_progress(
+        progress
+    )
+
+
+# ============================================================
+# UPDATE PROGRESS
+# ============================================================
 
 @router.put(
     "/{progress_id}",
@@ -196,7 +282,9 @@ async def update_progress(
 ):
     service = ProgressService(db)
 
-    progress = await service.get_by_id(progress_id)
+    progress = await service.get_by_id(
+        progress_id
+    )
 
     if progress is None:
         raise HTTPException(
@@ -209,10 +297,20 @@ async def update_progress(
     )
 
     for field, value in update_data.items():
-        setattr(progress, field, value)
+        setattr(
+            progress,
+            field,
+            value,
+        )
 
-    return await service.update_progress(progress)
+    return await service.update_progress(
+        progress
+    )
 
+
+# ============================================================
+# DELETE PROGRESS
+# ============================================================
 
 @router.delete(
     "/{progress_id}",
@@ -224,7 +322,9 @@ async def delete_progress(
 ):
     service = ProgressService(db)
 
-    progress = await service.get_by_id(progress_id)
+    progress = await service.get_by_id(
+        progress_id
+    )
 
     if progress is None:
         raise HTTPException(
@@ -232,4 +332,8 @@ async def delete_progress(
             detail="Progress not found",
         )
 
-    await service.delete_progress(progress)
+    await service.delete_progress(
+        progress
+    )
+
+    return None
