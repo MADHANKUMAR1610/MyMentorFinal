@@ -1085,6 +1085,7 @@ class CodeExecutionService:
                         actual_data,
 
                         ensure_ascii=False,
+                        separators=(",", ":"),
 
                     )
 
