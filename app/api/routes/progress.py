@@ -130,19 +130,48 @@ async def get_user_level_progress(
 ):
     service = ProgressService(db)
 
+    # 1. Check whether progress already exists
     progress = await service.get_user_level_progress(
         user_id,
         level_id,
     )
 
+    # 2. If it doesn't exist, create initial progress
     if progress is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Progress not found",
+
+        # Get the level so we can get the correct course_id
+        result = await db.execute(
+            select(Level).where(
+                Level.id == level_id
+            )
+        )
+
+        level = result.scalar_one_or_none()
+
+        if level is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Level not found",
+            )
+
+        # Create initial progress
+        progress = Progress(
+            user_id=user_id,
+            course_id=level.course_id,
+            level_id=level_id,
+
+            checkpoints_passed=0,
+            mcqs_answered=0,
+            video_completed=False,
+            mcqs_completed=False,
+            completed=False,
+        )
+
+        progress = await service.create_progress(
+            progress
         )
 
     return progress
-
 
 # ============================================================
 # GET COMPLETED PROGRESS
