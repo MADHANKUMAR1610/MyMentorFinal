@@ -160,8 +160,8 @@ async def get_user_level_progress(
             course_id=level.course_id,
             level_id=level_id,
 
-            checkpoints_passed=0,
-            mcqs_answered=0,
+            checkpoints_passed=[],
+            mcqs_answered=[],
             video_completed=False,
             mcqs_completed=False,
             completed=False,
