@@ -1118,18 +1118,16 @@ class CodeExecutionService:
 
 
                 normalized_actual = actual_output.strip()
-
                 normalized_expected = expected_output.strip()
 
+                try:
+                   actual_json = json.loads(normalized_actual)
+                   expected_json = json.loads(normalized_expected)
 
+                   passed = actual_json == expected_json
 
-                passed = (
-
-                    normalized_actual
-
-                    == normalized_expected
-
-                )
+                except json.JSONDecodeError:
+                   passed = normalized_actual == normalized_expected
 
 
 
