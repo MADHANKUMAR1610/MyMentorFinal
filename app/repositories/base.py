@@ -1,4 +1,4 @@
-from typing import Generic, TypeVar, Type, Optional, Sequence
+from typing import Generic, Optional, Sequence, Type, TypeVar
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,6 +17,10 @@ class BaseRepository(Generic[ModelType]):
         self.model = model
         self.session = session
 
+    # ============================================================
+    # GET BY ID
+    # ============================================================
+
     async def get_by_id(
         self,
         entity_id,
@@ -29,6 +33,10 @@ class BaseRepository(Generic[ModelType]):
         )
 
         return result.scalar_one_or_none()
+
+    # ============================================================
+    # GET ALL
+    # ============================================================
 
     async def get_all(
         self,
@@ -45,6 +53,10 @@ class BaseRepository(Generic[ModelType]):
 
         return result.scalars().all()
 
+    # ============================================================
+    # CREATE
+    # ============================================================
+
     async def create(
         self,
         entity: ModelType,
@@ -58,6 +70,10 @@ class BaseRepository(Generic[ModelType]):
 
         return entity
 
+    # ============================================================
+    # UPDATE
+    # ============================================================
+
     async def update(
         self,
         entity: ModelType,
@@ -68,6 +84,10 @@ class BaseRepository(Generic[ModelType]):
         await self.session.refresh(entity)
 
         return entity
+
+    # ============================================================
+    # DELETE
+    # ============================================================
 
     async def delete(
         self,

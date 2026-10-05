@@ -18,6 +18,10 @@ class ProgressRepository(BaseRepository[Progress]):
     def __init__(self, session: AsyncSession):
         super().__init__(Progress, session)
 
+    # ============================================================
+    # GET BY USER ID
+    # ============================================================
+
     async def get_by_user_id(
         self,
         user_id: UUID,
@@ -25,9 +29,6 @@ class ProgressRepository(BaseRepository[Progress]):
         skip: int = 0,
         limit: int = 100,
     ) -> list[Progress]:
-        """
-        Get all progress records for a user.
-        """
 
         result = await self.session.execute(
             select(Progress)
@@ -43,6 +44,10 @@ class ProgressRepository(BaseRepository[Progress]):
 
         return list(result.scalars().all())
 
+    # ============================================================
+    # GET BY COURSE ID
+    # ============================================================
+
     async def get_by_course_id(
         self,
         course_id: UUID,
@@ -50,9 +55,6 @@ class ProgressRepository(BaseRepository[Progress]):
         skip: int = 0,
         limit: int = 100,
     ) -> list[Progress]:
-        """
-        Get progress records for a course.
-        """
 
         result = await self.session.execute(
             select(Progress)
@@ -68,6 +70,10 @@ class ProgressRepository(BaseRepository[Progress]):
 
         return list(result.scalars().all())
 
+    # ============================================================
+    # GET BY LEVEL ID
+    # ============================================================
+
     async def get_by_level_id(
         self,
         level_id: UUID,
@@ -75,9 +81,6 @@ class ProgressRepository(BaseRepository[Progress]):
         skip: int = 0,
         limit: int = 100,
     ) -> list[Progress]:
-        """
-        Get progress records for a level.
-        """
 
         result = await self.session.execute(
             select(Progress)
@@ -93,14 +96,15 @@ class ProgressRepository(BaseRepository[Progress]):
 
         return list(result.scalars().all())
 
+    # ============================================================
+    # GET USER LEVEL PROGRESS
+    # ============================================================
+
     async def get_user_level_progress(
         self,
         user_id: UUID,
         level_id: UUID,
     ) -> Optional[Progress]:
-        """
-        Get the unique progress record for a user and level.
-        """
 
         result = await self.session.execute(
             select(Progress).where(
@@ -111,6 +115,10 @@ class ProgressRepository(BaseRepository[Progress]):
 
         return result.scalar_one_or_none()
 
+    # ============================================================
+    # GET COMPLETED PROGRESS
+    # ============================================================
+
     async def get_completed_for_user(
         self,
         user_id: UUID,
@@ -118,9 +126,6 @@ class ProgressRepository(BaseRepository[Progress]):
         skip: int = 0,
         limit: int = 100,
     ) -> list[Progress]:
-        """
-        Get completed levels for a user.
-        """
 
         result = await self.session.execute(
             select(Progress)
@@ -137,6 +142,10 @@ class ProgressRepository(BaseRepository[Progress]):
 
         return list(result.scalars().all())
 
+    # ============================================================
+    # GET INCOMPLETE PROGRESS
+    # ============================================================
+
     async def get_incomplete_for_user(
         self,
         user_id: UUID,
@@ -144,9 +153,6 @@ class ProgressRepository(BaseRepository[Progress]):
         skip: int = 0,
         limit: int = 100,
     ) -> list[Progress]:
-        """
-        Get incomplete levels for a user.
-        """
 
         result = await self.session.execute(
             select(Progress)

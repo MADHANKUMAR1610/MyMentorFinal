@@ -4,9 +4,11 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.dependencies import get_current_user
 from app.database.database import get_db
 from app.models.level import Level
 from app.models.progress import Progress
+from app.models.user import User
 from app.schemas.progress import (
     ProgressCreate,
     ProgressResponse,
@@ -47,7 +49,9 @@ async def get_progress(
 
 
 # ============================================================
-# GET PROGRESS BY USER
+
+# GET USER PROGRESS
+
 # ============================================================
 
 @router.get(
@@ -70,7 +74,9 @@ async def get_user_progress(
 
 
 # ============================================================
-# GET PROGRESS BY COURSE
+
+# GET COURSE PROGRESS
+
 # ============================================================
 
 @router.get(
@@ -93,7 +99,9 @@ async def get_course_progress(
 
 
 # ============================================================
-# GET PROGRESS BY LEVEL
+
+# GET LEVEL PROGRESS
+
 # ============================================================
 
 @router.get(
@@ -177,6 +185,10 @@ async def get_user_level_progress(
 # GET COMPLETED PROGRESS
 # ============================================================
 
+# ============================================================
+# GET COMPLETED PROGRESS
+# ============================================================
+
 @router.get(
     "/user/{user_id}/completed",
     response_model=list[ProgressResponse],
@@ -230,6 +242,7 @@ async def get_incomplete_progress(
 )
 async def create_progress(
     data: ProgressCreate,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     # --------------------------------------------------------
@@ -266,11 +279,13 @@ async def create_progress(
     # --------------------------------------------------------
 
     progress = Progress(
-        user_id=data.user_id,
 
         # IMPORTANT:
-        # Use the course_id from the level
-        course_id=correct_course_id,
+        # User ID comes from JWT.
+        # Never trust user_id from frontend.
+        user_id=current_user.id,
+
+        course_id=data.course_id,
 
         level_id=data.level_id,
 
@@ -300,6 +315,10 @@ async def create_progress(
 # UPDATE PROGRESS
 # ============================================================
 
+# ============================================================
+# UPDATE PROGRESS
+# ============================================================
+
 @router.put(
     "/{progress_id}",
     response_model=ProgressResponse,
@@ -307,6 +326,7 @@ async def create_progress(
 async def update_progress(
     progress_id: UUID,
     data: ProgressUpdate,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     service = ProgressService(db)
@@ -321,21 +341,92 @@ async def update_progress(
             detail="Progress not found",
         )
 
-    update_data = data.model_dump(
-        exclude_unset=True,
-    )
-
-    for field, value in update_data.items():
-        setattr(
-            progress,
-            field,
-            value,
+    # IMPORTANT:
+    # User can update only their own progress.
+    if progress.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You are not authorized to update this progress",
         )
 
-    return await service.update_progress(
-        progress
+    updated = await service.update_progress(
+        progress_id,
+        data,
     )
 
+
+    return updated
+
+
+
+# ============================================================
+# GET MY LEVEL PROGRESS
+# ============================================================
+
+@router.get(
+    "/me/level/{level_id}",
+    response_model=ProgressResponse,
+)
+async def get_my_level_progress(
+    level_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    service = ProgressService(db)
+
+    # User ID comes from JWT
+    user_id = current_user.id
+
+    # --------------------------------------------------------
+    # Check existing progress
+    # --------------------------------------------------------
+
+    progress = await service.get_user_level_progress(
+        user_id,
+        level_id,
+    )
+
+    # --------------------------------------------------------
+    # Create progress if it doesn't exist
+    # --------------------------------------------------------
+
+    if progress is None:
+
+        result = await db.execute(
+            select(Level).where(
+                Level.id == level_id
+            )
+        )
+
+        level = result.scalar_one_or_none()
+
+        if level is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Level not found",
+            )
+
+        progress = Progress(
+            user_id=user_id,
+            course_id=level.course_id,
+            level_id=level_id,
+            checkpoints_passed=[],
+            mcqs_answered=[],
+            video_completed=False,
+            mcqs_completed=False,
+            completed=False,
+        )
+
+        progress = await service.create_progress(
+            progress
+        )
+
+    return progress
+
+
+# ============================================================
+# DELETE PROGRESS
+# ============================================================
 
 # ============================================================
 # DELETE PROGRESS
@@ -347,6 +438,7 @@ async def update_progress(
 )
 async def delete_progress(
     progress_id: UUID,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     service = ProgressService(db)
@@ -361,8 +453,16 @@ async def delete_progress(
             detail="Progress not found",
         )
 
-    await service.delete_progress(
-        progress
-    )
+
+    # IMPORTANT:
+    # User can delete only their own progress.
+    if progress.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You are not authorized to delete this progress",
+        )
+
+    await service.delete_progress(progress)
+
 
     return None
