@@ -6,7 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 class ProgressCreate(BaseModel):
 
-    user_id: UUID
+
     course_id: UUID
     level_id: UUID
 
