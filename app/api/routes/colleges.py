@@ -28,7 +28,8 @@ from app.services.college_service import (
 )
 from app.core.security import hash_password
 from app.repositories.user_repository import UserRepository
-
+from app.utils.password_encryption import encrypt_password
+from app.utils.password_encryption import decrypt_password
 router = APIRouter(
     prefix="/colleges",
     tags=["Colleges"],
@@ -134,16 +135,20 @@ async def create_college(
         # --------------------------------------------------------
 
         college_admin = User(
-            name=f"{created_college.name} Admin",
-            email=data.admin_email,
-            password_hash=hash_password(
-                data.admin_password
-            ),
-            role="college_admin",
-            college_id=created_college.id,
-            is_active=True,
-            is_verified=True,
-        )
+          name=f"{created_college.name} Admin",
+          email=data.admin_email,
+          password_hash=hash_password(data.admin_password),
+
+        # Store encrypted copy for admin management
+          admin_password_encrypted=encrypt_password(
+             data.admin_password
+         ),
+
+          role="college_admin",
+          college_id=created_college.id,
+          is_active=True,
+          is_verified=True,
+         )
 
         await user_repository.create(
             college_admin
@@ -233,6 +238,10 @@ async def get_colleges(
     # GET COLLEGE ADMIN EMAILS
     # --------------------------------------------------------
 
+    # --------------------------------------------------------
+    # GET COLLEGE ADMIN EMAIL + PASSWORD
+    # --------------------------------------------------------
+
     college_ids = [
         college.id
         for college in colleges
@@ -242,7 +251,7 @@ async def get_colleges(
         select(
             User.college_id,
             User.email,
-            User.password_hash,
+            User.admin_password_encrypted,
         )
         .where(
             User.college_id.in_(college_ids),
@@ -253,7 +262,11 @@ async def get_colleges(
     admin_map = {
         row.college_id: {
             "email": row.email,
-            "password": "********" if row.password_hash else None,
+            "password": (
+                decrypt_password(row.admin_password_encrypted)
+                if row.admin_password_encrypted
+                else None
+            ),
         }
         for row in admin_result.all()
     }
@@ -325,6 +338,7 @@ async def get_college(
         select(
             User.email,
             User.password_hash,
+            User.admin_password_encrypted,
         )
         .where(
             User.college_id == college.id,
@@ -345,8 +359,8 @@ async def get_college(
     if admin:
         response.admin_email = admin.email
         response.admin_password = (
-            "********"
-            if admin.password_hash
+            decrypt_password(admin.admin_password_encrypted)
+            if admin.admin_password_encrypted
             else None
         )
 
