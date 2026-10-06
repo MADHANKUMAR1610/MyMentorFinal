@@ -1,5 +1,3 @@
-from datetime import datetime, timedelta, timezone
-
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -10,25 +8,37 @@ from app.models.progress import Progress
 from app.models.user import User
 from app.models.course_enrollment import CourseEnrollment
 
+
 class DashboardRepository:
 
-    def __init__(self, session: AsyncSession):
+    def __init__(
+        self,
+        session: AsyncSession,
+    ):
         self.session = session
 
     # ========================================================
     # ADMIN DASHBOARD
     # ========================================================
 
-    async def get_total_students(self) -> int:
+    async def get_total_students(
+        self,
+    ) -> int:
 
         result = await self.session.execute(
             select(func.count(User.id))
-            .where(User.role == "student")
+            .where(
+                User.role == "student"
+            )
         )
 
         return result.scalar_one()
 
-    async def get_active_students(self) -> int:
+    # ========================================================
+
+    async def get_active_students(
+        self,
+    ) -> int:
 
         result = await self.session.execute(
             select(func.count(User.id))
@@ -40,7 +50,11 @@ class DashboardRepository:
 
         return result.scalar_one()
 
-    async def get_total_courses(self) -> int:
+    # ========================================================
+
+    async def get_total_courses(
+        self,
+    ) -> int:
 
         result = await self.session.execute(
             select(func.count(Course.id))
@@ -48,7 +62,11 @@ class DashboardRepository:
 
         return result.scalar_one()
 
-    async def get_total_levels(self) -> int:
+    # ========================================================
+
+    async def get_total_levels(
+        self,
+    ) -> int:
 
         result = await self.session.execute(
             select(func.count(Level.id))
@@ -56,7 +74,11 @@ class DashboardRepository:
 
         return result.scalar_one()
 
-    async def get_total_videos(self) -> int:
+    # ========================================================
+
+    async def get_total_videos(
+        self,
+    ) -> int:
 
         # Each level contains its video information
         # inside the Level.video JSONB column.
@@ -72,7 +94,11 @@ class DashboardRepository:
 
         return result.scalar_one()
 
-    async def get_total_coding_challenges(self) -> int:
+    # ========================================================
+
+    async def get_total_coding_challenges(
+        self,
+    ) -> int:
 
         result = await self.session.execute(
             select(func.count(Checkpoint.id))
@@ -80,7 +106,11 @@ class DashboardRepository:
 
         return result.scalar_one()
 
-    async def get_completed_levels(self) -> int:
+    # ========================================================
+
+    async def get_completed_levels(
+        self,
+    ) -> int:
 
         result = await self.session.execute(
             select(func.count(Progress.id))
@@ -95,7 +125,14 @@ class DashboardRepository:
     # DAILY ACTIVE
     # ========================================================
 
-    async def get_daily_active_students(self) -> int:
+    async def get_daily_active_students(
+        self,
+    ) -> int:
+
+        # Use Progress activity for dashboard
+        # active-student statistics.
+
+        from datetime import datetime, timezone
 
         now = datetime.now(timezone.utc)
 
@@ -109,7 +146,9 @@ class DashboardRepository:
         result = await self.session.execute(
             select(
                 func.count(
-                    func.distinct(Progress.user_id)
+                    func.distinct(
+                        Progress.user_id
+                    )
                 )
             )
             .where(
@@ -123,7 +162,11 @@ class DashboardRepository:
     # MONTHLY ACTIVE
     # ========================================================
 
-    async def get_monthly_active_students(self) -> int:
+    async def get_monthly_active_students(
+        self,
+    ) -> int:
+
+        from datetime import datetime, timezone
 
         now = datetime.now(timezone.utc)
 
@@ -138,7 +181,9 @@ class DashboardRepository:
         result = await self.session.execute(
             select(
                 func.count(
-                    func.distinct(Progress.user_id)
+                    func.distinct(
+                        Progress.user_id
+                    )
                 )
             )
             .where(
@@ -152,7 +197,9 @@ class DashboardRepository:
     # LEARNING HOURS
     # ========================================================
 
-    async def get_learning_hours(self) -> float:
+    async def get_learning_hours(
+        self,
+    ) -> float:
 
         # There is currently no learning-duration column
         # in the models provided.
@@ -249,65 +296,81 @@ class DashboardRepository:
                 Course.title,
                 Course.difficulty,
 
-                func.min(Level.stage).label("stage"),
+                func.min(
+                    Level.stage
+                ).label("stage"),
 
                 func.count(
-                    func.distinct(Level.id)
+                    func.distinct(
+                        Level.id
+                    )
                 ).label("total_levels"),
 
                 func.count(
-                    func.distinct(Progress.level_id)
+                    func.distinct(
+                        Progress.level_id
+                    )
                 )
                 .filter(
                     Progress.completed.is_(True)
                 )
                 .label("completed_levels"),
             )
-        # ----------------------------------------------------
-        # ONLY COURSES THE USER IS ENROLLED IN
-        # ----------------------------------------------------
+
+            # ------------------------------------------------
+            # ONLY COURSES THE USER IS ENROLLED IN
+            # ------------------------------------------------
+
             .join(
-            CourseEnrollment,
-            CourseEnrollment.course_id == Course.id,
-        )
-
-        # ----------------------------------------------------
-        # INCLUDE COURSES EVEN IF THEY HAVE 0 LEVELS
-        # ----------------------------------------------------
-            .outerjoin(
-            Level,
-            Level.course_id == Course.id,
-        )
-
-        # ----------------------------------------------------
-        # GET THIS USER'S PROGRESS ONLY
-        # ----------------------------------------------------
-            .outerjoin(
-            Progress,
-            (
-                Progress.level_id == Level.id
+                CourseEnrollment,
+                CourseEnrollment.course_id
+                == Course.id,
             )
-            & (
-                Progress.user_id == user_id
-            ),
-        )
+
+            # ------------------------------------------------
+            # INCLUDE COURSES EVEN IF THEY HAVE 0 LEVELS
+            # ------------------------------------------------
+
+            .outerjoin(
+                Level,
+                Level.course_id == Course.id,
+            )
+
+            # ------------------------------------------------
+            # GET THIS USER'S PROGRESS ONLY
+            # ------------------------------------------------
+
+            .outerjoin(
+                Progress,
+                (
+                    Progress.level_id
+                    == Level.id
+                )
+                & (
+                    Progress.user_id
+                    == user_id
+                ),
+            )
 
             .where(
-            CourseEnrollment.user_id == user_id,
-        )
+                CourseEnrollment.user_id
+                == user_id,
+            )
 
             .group_by(
-            Course.id,
-            Course.title,
-            Course.difficulty,
-        )
+                Course.id,
+                Course.title,
+                Course.difficulty,
+            )
 
             .order_by(
-            Course.created_at.desc()
-        )
+                Course.created_at.desc()
+            )
         )
 
         return result.all()
+
+    # ========================================================
 
     async def get_student_user(
         self,
@@ -316,10 +379,14 @@ class DashboardRepository:
 
         result = await self.session.execute(
             select(User)
-            .where(User.id == user_id)
+            .where(
+                User.id == user_id
+            )
         )
 
         return result.scalar_one_or_none()
+
+    # ========================================================
 
     async def get_student_completed_courses(
         self,
@@ -332,11 +399,13 @@ class DashboardRepository:
             )
             .join(
                 Level,
-                Level.course_id == Course.id,
+                Level.course_id
+                == Course.id,
             )
             .join(
                 Progress,
-                Progress.level_id == Level.id,
+                Progress.level_id
+                == Level.id,
             )
             .where(
                 Progress.user_id == user_id,
@@ -348,7 +417,9 @@ class DashboardRepository:
             )
             .having(
                 func.count(
-                    func.distinct(Level.id)
+                    func.distinct(
+                        Level.id
+                    )
                 )
                 ==
                 func.count(
@@ -363,7 +434,8 @@ class DashboardRepository:
             row[0]
             for row in result.all()
         ]
-        # ========================================================
+
+    # ========================================================
     # STUDENT STREAK
     # ========================================================
 
@@ -372,72 +444,38 @@ class DashboardRepository:
         user_id,
     ) -> int:
         """
-        Calculate current learning streak from Progress activity.
+        Get the user's current learning streak.
 
-        A day counts when the student has progress activity
-        on that date.
+        The streak is maintained on the User model.
+
+        User.streak:
+            Current consecutive learning days.
+
+        User.last_active:
+            Last successful learning activity date.
+
+        The streak is updated by:
+            - Successful checkpoint completion
+            - Complete MCQ level
+            - Video completion
+
+        Login does NOT update the streak.
         """
 
         result = await self.session.execute(
             select(
-                func.date(
-                    Progress.updated_at
-                ).label("activity_date")
+                User.streak
             )
             .where(
-                Progress.user_id == user_id
-            )
-            .group_by(
-                func.date(
-                    Progress.updated_at
-                )
-            )
-            .order_by(
-                func.date(
-                    Progress.updated_at
-                ).desc()
+                User.id == user_id
             )
         )
 
-        activity_dates = [
-            row.activity_date
-            for row in result.all()
-        ]
+        streak = result.scalar_one_or_none()
 
-        if not activity_dates:
+        if streak is None:
             return 0
 
-        today = datetime.now(
-            timezone.utc
-        ).date()
-
-        latest_date = activity_dates[0]
-
-        # Activity today
-        if latest_date == today:
-            expected_date = today
-
-        # No activity today, but activity yesterday
-        elif latest_date == today - timedelta(days=1):
-            expected_date = today - timedelta(days=1)
-
-        # Streak has expired
-        else:
-            return 0
-
-        streak = 0
-
-        for activity_date in activity_dates:
-
-            if activity_date == expected_date:
-
-                streak += 1
-
-                expected_date -= timedelta(
-                    days=1
-                )
-
-            elif activity_date < expected_date:
-                break
-
-        return streak
+        return int(
+            streak or 0
+        )

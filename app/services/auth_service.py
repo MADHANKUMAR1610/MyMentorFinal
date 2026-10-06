@@ -1,5 +1,3 @@
-from datetime import date, timedelta
-
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import (
@@ -77,80 +75,6 @@ class AuthService:
         return created_user
 
     # ============================================================
-    # UPDATE DAILY LOGIN STREAK
-    # ============================================================
-
-    async def update_login_streak(
-        self,
-        user: User,
-    ) -> None:
-        """
-        Update daily login streak.
-
-        Rules:
-        - First login                  -> 1
-        - Login again same day         -> unchanged
-        - Login on consecutive day    -> +1
-        - Miss one or more days        -> reset to 1
-        """
-
-        # Current date as string because
-        # users.last_active is VARCHAR.
-        today = date.today()
-
-        today_str = today.isoformat()
-
-        yesterday_str = (
-            today - timedelta(days=1)
-        ).isoformat()
-
-        # ========================================================
-        # FIRST LOGIN
-        # ========================================================
-
-        if not user.last_active:
-
-            user.streak = 1
-            user.last_active = today_str
-
-        else:
-
-            # Always compare as string
-            last_active = str(
-                user.last_active
-            )
-
-            # ====================================================
-            # ALREADY LOGGED IN TODAY
-            # ====================================================
-
-            if last_active == today_str:
-
-                # Don't increase streak.
-                pass
-
-            # ====================================================
-            # LOGGED IN YESTERDAY
-            # ====================================================
-
-            elif last_active == yesterday_str:
-
-                user.streak = (
-                    user.streak or 0
-                ) + 1
-
-                user.last_active = today_str
-
-            # ====================================================
-            # MISSED ONE OR MORE DAYS
-            # ====================================================
-
-            else:
-
-                user.streak = 1
-                user.last_active = today_str
-
-    # ============================================================
     # AUTHENTICATE
     # ============================================================
 
@@ -193,17 +117,9 @@ class AuthService:
         if not user.is_active:
             return None
 
-        # ========================================================
-        # UPDATE DAILY LOGIN STREAK
-        # ========================================================
-
-        await self.update_login_streak(
-            user
-        )
-
-        # ========================================================
+        # --------------------------------------------------------
         # LOGIN AUDIT
-        # ========================================================
+        # --------------------------------------------------------
 
         if user.company_id is not None:
 
@@ -211,9 +127,9 @@ class AuthService:
                 user
             )
 
-        # ========================================================
+        # --------------------------------------------------------
         # SAVE EVERYTHING
-        # ========================================================
+        # --------------------------------------------------------
 
         await self.session.commit()
 
