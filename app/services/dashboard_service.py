@@ -8,6 +8,7 @@ from app.schemas.dashboard import (
     AdminDashboardResponse,
     RecentlyActiveStudent,
     StudentCollegePackage,
+    StudentCollegePackageCourse,
     StudentCourseDashboardItem,
     StudentDashboardResponse,
 )
@@ -52,27 +53,33 @@ class DashboardService:
         )
 
         total_coding_challenges = (
-            await self.repository.get_total_coding_challenges()
+            await self.repository
+            .get_total_coding_challenges()
         )
 
         completed_levels = (
-            await self.repository.get_completed_levels()
+            await self.repository
+            .get_completed_levels()
         )
 
         learning_hours = (
-            await self.repository.get_learning_hours()
+            await self.repository
+            .get_learning_hours()
         )
 
         daily_active = (
-            await self.repository.get_daily_active_students()
+            await self.repository
+            .get_daily_active_students()
         )
 
         monthly_active = (
-            await self.repository.get_monthly_active_students()
+            await self.repository
+            .get_monthly_active_students()
         )
 
         student_rows = (
-            await self.repository.get_recently_active_students()
+            await self.repository
+            .get_recently_active_students()
         )
 
         recently_active_students = [
@@ -93,9 +100,13 @@ class DashboardService:
             total_courses=total_courses,
             total_levels=total_levels,
             total_videos=total_videos,
-            total_coding_challenges=total_coding_challenges,
+
+            total_coding_challenges=(
+                total_coding_challenges
+            ),
 
             completed_levels=completed_levels,
+
             learning_hours=learning_hours,
 
             daily_active=daily_active,
@@ -107,22 +118,17 @@ class DashboardService:
         )
 
     # ========================================================
-    # STUDENT DASHBOARD
+    # COMMON STUDENT DASHBOARD DATA
     # ========================================================
 
-    async def get_student_dashboard(
+    async def _get_student_dashboard_data(
         self,
         user_id,
-    ) -> StudentDashboardResponse:
-
-        # ----------------------------------------------------
-        # Student
-        # ----------------------------------------------------
+    ):
 
         user = (
-            await self.repository.get_student_user(
-                user_id
-            )
+            await self.repository
+            .get_student_user(user_id)
         )
 
         if user is None:
@@ -131,33 +137,12 @@ class DashboardService:
             )
 
         # ----------------------------------------------------
-        # College Packages
-        # ----------------------------------------------------
-
-        package_rows = (
-            await self.repository
-            .get_student_college_packages(
-                user_id
-            )
-        )
-
-        college_packages = [
-            StudentCollegePackage(
-                id=str(row.id),
-                package_name=row.package_name,
-                description=row.description,
-            )
-            for row in package_rows
-        ]
-
-        # ----------------------------------------------------
-        # Get ALL courses enrolled by this student
+        # STUDENT COURSES
         # ----------------------------------------------------
 
         course_rows = (
-            await self.repository.get_student_courses(
-                user_id
-            )
+            await self.repository
+            .get_student_courses(user_id)
         )
 
         courses = []
@@ -172,28 +157,34 @@ class DashboardService:
                 row.completed_levels or 0
             )
 
-            # ------------------------------------------------
-            # Real-time progress percentage
-            # ------------------------------------------------
-
             if total_levels > 0:
+
                 percentage = (
                     completed_levels
                     / total_levels
                 ) * 100
+
             else:
+
                 percentage = 0.0
 
             courses.append(
                 StudentCourseDashboardItem(
-                    course_id=str(row.id),
+                    course_id=str(
+                        row.id
+                    ),
+
                     title=row.title,
+
                     difficulty=row.difficulty,
+
                     stage=row.stage,
 
                     total_levels=total_levels,
 
-                    completed_levels=completed_levels,
+                    completed_levels=(
+                        completed_levels
+                    ),
 
                     progress_percentage=round(
                         percentage,
@@ -203,13 +194,16 @@ class DashboardService:
             )
 
         # ----------------------------------------------------
-        # Student streak
+        # STREAK
         # ----------------------------------------------------
 
-        streak = user.streak or 0
+        streak = (
+            await self.repository
+            .get_student_streak(user_id)
+        )
 
         # ----------------------------------------------------
-        # Completed courses
+        # RECENTLY COMPLETED
         # ----------------------------------------------------
 
         recently_completed = (
@@ -219,8 +213,219 @@ class DashboardService:
             )
         )
 
+        return {
+            "user": user,
+            "courses": courses,
+            "streak": streak,
+            "recently_completed": (
+                recently_completed
+            ),
+        }
+
+    # ========================================================
+    # NORMAL STUDENT DASHBOARD
+    #
+    # No college package
+    # ========================================================
+
+    async def get_student_dashboard(
+        self,
+        user_id,
+    ) -> StudentDashboardResponse:
+
+        data = (
+            await self
+            ._get_student_dashboard_data(
+                user_id
+            )
+        )
+
+        user = data["user"]
+
+        return StudentDashboardResponse(
+            name=user.name,
+
+            xp=user.xp or 0,
+
+            streak=data["streak"],
+
+            continue_courses=data[
+                "courses"
+            ],
+
+            achievements=[],
+
+            recently_completed=data[
+                "recently_completed"
+            ],
+
+            certificates=[],
+
+            college_packages=None,
+        )
+
+    # ========================================================
+    # STUDENT DASHBOARD BY ID
+    #
+    # Normal Admin:
+    #     include_college_package=False
+    #
+    # College Admin:
+    #     include_college_package=True
+    # ========================================================
+
+    async def get_student_dashboard_by_id(
+        self,
+        user_id,
+        include_college_package: bool = False,
+    ) -> StudentDashboardResponse:
+
         # ----------------------------------------------------
-        # Student dashboard response
+        # COMMON STUDENT DASHBOARD
+        # ----------------------------------------------------
+
+        data = (
+            await self
+            ._get_student_dashboard_data(
+                user_id
+            )
+        )
+
+        user = data["user"]
+
+        # ----------------------------------------------------
+        # DEFAULT
+        # ----------------------------------------------------
+
+        college_packages = None
+
+        # ----------------------------------------------------
+        # COLLEGE ADMIN ONLY
+        # ----------------------------------------------------
+
+        if include_college_package:
+
+            rows = (
+                await self.repository
+                .get_student_college_packages(
+                    user_id
+                )
+            )
+
+            package_map = {}
+
+            # ------------------------------------------------
+            # PACKAGE + COURSES
+            # ------------------------------------------------
+
+            for row in rows:
+
+                package_id = str(
+                    row["package_id"]
+                )
+
+                # --------------------------------------------
+                # CREATE PACKAGE
+                # --------------------------------------------
+
+                if package_id not in package_map:
+
+                    package_map[
+                        package_id
+                    ] = {
+                        "id": package_id,
+
+                        "package_name": (
+                            row["package_name"]
+                        ),
+
+                        "description": (
+                            row[
+                                "package_description"
+                            ]
+                        ),
+
+                        "course_count": 0,
+
+                        "courses": [],
+                    }
+
+                # --------------------------------------------
+                # ADD COURSE
+                # --------------------------------------------
+
+                package_map[
+                    package_id
+                ][
+                    "courses"
+                ].append(
+                    StudentCollegePackageCourse(
+                        id=str(
+                            row["course_id"]
+                        ),
+
+                        title=(
+                            row["course_title"]
+                        ),
+
+                        description=(
+                            row[
+                                "course_description"
+                            ]
+                        ),
+
+                        language=(
+                            row["course_language"]
+                        ),
+
+                        difficulty=(
+                            row[
+                                "course_difficulty"
+                            ]
+                        ),
+
+                        duration=(
+                            row[
+                                "course_duration"
+                            ]
+                        ),
+
+                        thumbnail=(
+                            row[
+                                "course_thumbnail"
+                            ]
+                        ),
+
+                        status=(
+                            row["course_status"]
+                        ),
+                    )
+                )
+
+                # --------------------------------------------
+                # INCREMENT COURSE COUNT
+                # --------------------------------------------
+
+                package_map[
+                    package_id
+                ][
+                    "course_count"
+                ] += 1
+
+            # ------------------------------------------------
+            # CONVERT PACKAGE MAP TO SCHEMA
+            # ------------------------------------------------
+
+            college_packages = [
+                StudentCollegePackage(
+                    **package_data
+                )
+                for package_data
+                in package_map.values()
+            ]
+
+        # ----------------------------------------------------
+        # FINAL RESPONSE
         # ----------------------------------------------------
 
         return StudentDashboardResponse(
@@ -228,16 +433,21 @@ class DashboardService:
 
             xp=user.xp or 0,
 
-            streak=streak,
+            streak=data["streak"],
 
-            college_packages=college_packages,
-
-            # ALL ENROLLED COURSES
-            continue_courses=courses,
+            continue_courses=data[
+                "courses"
+            ],
 
             achievements=[],
 
-            recently_completed=recently_completed,
+            recently_completed=data[
+                "recently_completed"
+            ],
 
             certificates=[],
+
+            college_packages=(
+                college_packages
+            ),
         )

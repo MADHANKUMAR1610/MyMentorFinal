@@ -1,8 +1,10 @@
-from sqlalchemy import func, select
+from datetime import datetime, timezone
 
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.college_package import CollegePackage
+from app.models.college_package_course import CollegePackageCourse
 from app.models.checkpoint import Checkpoint
 from app.models.course import Course
 from app.models.level import Level
@@ -82,11 +84,6 @@ class DashboardRepository:
         self,
     ) -> int:
 
-        # Each level contains its video information
-        # inside the Level.video JSONB column.
-        #
-        # Count levels where video is not empty.
-
         result = await self.session.execute(
             select(func.count(Level.id))
             .where(
@@ -131,11 +128,6 @@ class DashboardRepository:
         self,
     ) -> int:
 
-        # Use Progress activity for dashboard
-        # active-student statistics.
-
-        from datetime import datetime, timezone
-
         now = datetime.now(timezone.utc)
 
         start_of_day = now.replace(
@@ -167,8 +159,6 @@ class DashboardRepository:
     async def get_monthly_active_students(
         self,
     ) -> int:
-
-        from datetime import datetime, timezone
 
         now = datetime.now(timezone.utc)
 
@@ -202,12 +192,6 @@ class DashboardRepository:
     async def get_learning_hours(
         self,
     ) -> float:
-
-        # There is currently no learning-duration column
-        # in the models provided.
-        #
-        # Therefore we return 0 until a learning-session/
-        # duration model is available.
 
         return 0.0
 
@@ -288,8 +272,8 @@ class DashboardRepository:
         user_id,
     ):
         """
-        Get all courses enrolled by the student with
-        real-time level progress.
+        Get all courses enrolled by the student
+        with real-time level progress.
         """
 
         result = await self.session.execute(
@@ -318,53 +302,33 @@ class DashboardRepository:
                 )
                 .label("completed_levels"),
             )
-
-            # ------------------------------------------------
-            # ONLY COURSES THE USER IS ENROLLED IN
-            # ------------------------------------------------
-
             .join(
                 CourseEnrollment,
                 CourseEnrollment.course_id
                 == Course.id,
             )
-
-            # ------------------------------------------------
-            # INCLUDE COURSES EVEN IF THEY HAVE 0 LEVELS
-            # ------------------------------------------------
-
             .outerjoin(
                 Level,
                 Level.course_id == Course.id,
             )
-
-            # ------------------------------------------------
-            # GET THIS USER'S PROGRESS ONLY
-            # ------------------------------------------------
-
             .outerjoin(
                 Progress,
                 (
-                    Progress.level_id
-                    == Level.id
+                    Progress.level_id == Level.id
                 )
                 & (
-                    Progress.user_id
-                    == user_id
+                    Progress.user_id == user_id
                 ),
             )
-
             .where(
                 CourseEnrollment.user_id
                 == user_id,
             )
-
             .group_by(
                 Course.id,
                 Course.title,
                 Course.difficulty,
             )
-
             .order_by(
                 Course.created_at.desc()
             )
@@ -372,6 +336,8 @@ class DashboardRepository:
 
         return result.all()
 
+    # ========================================================
+    # STUDENT USER
     # ========================================================
 
     async def get_student_user(
@@ -389,6 +355,8 @@ class DashboardRepository:
         return result.scalar_one_or_none()
 
     # ========================================================
+    # STUDENT COMPLETED COURSES
+    # ========================================================
 
     async def get_student_completed_courses(
         self,
@@ -401,13 +369,11 @@ class DashboardRepository:
             )
             .join(
                 Level,
-                Level.course_id
-                == Course.id,
+                Level.course_id == Course.id,
             )
             .join(
                 Progress,
-                Progress.level_id
-                == Level.id,
+                Progress.level_id == Level.id,
             )
             .where(
                 Progress.user_id == user_id,
@@ -448,18 +414,7 @@ class DashboardRepository:
         """
         Get the user's current learning streak.
 
-        The streak is maintained on the User model.
-
-        User.streak:
-            Current consecutive learning days.
-
-        User.last_active:
-            Last successful learning activity date.
-
-        The streak is updated by:
-            - Successful checkpoint completion
-            - Complete MCQ level
-            - Video completion
+        The streak is maintained on User.streak.
 
         Login does NOT update the streak.
         """
@@ -483,7 +438,7 @@ class DashboardRepository:
         )
 
     # ========================================================
-    # COLLEGE PACKAGES
+    # COLLEGE PACKAGES WITH COURSES
     # ========================================================
 
     async def get_student_college_packages(
@@ -491,27 +446,78 @@ class DashboardRepository:
         user_id,
     ):
         """
-        Get all college packages belonging
-        to the student's college.
+        Get college packages for the student's college,
+        including all courses assigned to each package.
         """
 
         result = await self.session.execute(
             select(
-                CollegePackage.id,
-                CollegePackage.package_name,
-                CollegePackage.description,
+                CollegePackage.id.label(
+                    "package_id"
+                ),
+
+                CollegePackage.package_name.label(
+                    "package_name"
+                ),
+
+                CollegePackage.description.label(
+                    "package_description"
+                ),
+
+                Course.id.label(
+                    "course_id"
+                ),
+
+                Course.title.label(
+                    "course_title"
+                ),
+
+                Course.description.label(
+                    "course_description"
+                ),
+
+                Course.language.label(
+                    "course_language"
+                ),
+
+                Course.difficulty.label(
+                    "course_difficulty"
+                ),
+
+                Course.duration.label(
+                    "course_duration"
+                ),
+
+                Course.thumbnail.label(
+                    "course_thumbnail"
+                ),
+
+                Course.status.label(
+                    "course_status"
+                ),
             )
             .join(
                 User,
                 User.college_id
                 == CollegePackage.college_id,
             )
+            .join(
+                CollegePackageCourse,
+                CollegePackageCourse.package_id
+                == CollegePackage.id,
+            )
+            .join(
+                Course,
+                Course.id
+                == CollegePackageCourse.course_id,
+            )
             .where(
                 User.id == user_id
             )
             .order_by(
-                CollegePackage.created_at.desc()
+                CollegePackage.created_at.desc(),
+                Course.created_at.asc(),
             )
         )
 
-        return result.all()
+        return result.mappings().all()

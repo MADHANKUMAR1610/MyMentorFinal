@@ -1,19 +1,31 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+)
+
+from sqlalchemy.ext.asyncio import (
+    AsyncSession,
+)
 
 from app.api.dependencies import (
     get_current_admin,
-    get_current_college_admin,
     get_current_user,
 )
-from app.database.database import get_db
+
+from app.database.database import (
+    get_db,
+)
+
 from app.models.user import User
+
 from app.schemas.dashboard import (
     AdminDashboardResponse,
     StudentDashboardResponse,
 )
+
 from app.services.dashboard_service import (
     DashboardService,
 )
@@ -42,18 +54,23 @@ async def get_admin_skillhub_dashboard(
     ),
 ):
 
-    service = DashboardService(session)
+    service = DashboardService(
+        session
+    )
 
-    return await service.get_admin_dashboard()
+    return await (
+        service.get_admin_dashboard()
+    )
 
 
 # ============================================================
-# LOGGED-IN STUDENT DASHBOARD
+# NORMAL STUDENT DASHBOARD
 # ============================================================
 
 @router.get(
     "/student/skillhub",
     response_model=StudentDashboardResponse,
+    response_model_exclude_none=True,
 )
 async def get_student_skillhub_dashboard(
     current_user: User = Depends(
@@ -64,12 +81,16 @@ async def get_student_skillhub_dashboard(
     ),
 ):
 
-    service = DashboardService(session)
+    service = DashboardService(
+        session
+    )
 
     try:
 
-        return await service.get_student_dashboard(
-            current_user.id
+        return await (
+            service.get_student_dashboard(
+                current_user.id
+            )
         )
 
     except ValueError as exc:
@@ -81,75 +102,126 @@ async def get_student_skillhub_dashboard(
 
 
 # ============================================================
-# COLLEGE ADMIN
-# VIEW PARTICULAR STUDENT DASHBOARD
+# ADMIN / COLLEGE ADMIN
+# STUDENT DASHBOARD BY STUDENT ID
 # ============================================================
 
 @router.get(
     "/student/skillhub/{student_id}",
     response_model=StudentDashboardResponse,
+    response_model_exclude_none=True,
 )
 async def get_student_skillhub_dashboard_by_id(
     student_id: UUID,
     current_user: User = Depends(
-        get_current_college_admin
+        get_current_user
     ),
     session: AsyncSession = Depends(
         get_db
     ),
 ):
 
-    # --------------------------------------------------------
-    # Find student
-    # --------------------------------------------------------
-
-    student = await session.get(
-        User,
-        student_id,
+    service = DashboardService(
+        session
     )
 
-    if student is None:
-        raise HTTPException(
-            status_code=404,
-            detail="Student not found.",
-        )
+    # ========================================================
+    # NORMAL ADMIN
+    # ========================================================
+    #
+    # Admin can view ANY student.
+    #
+    # College package is NOT returned.
+    #
 
-    # --------------------------------------------------------
-    # Make sure selected user is a student
-    # --------------------------------------------------------
+    if current_user.role == "admin":
 
-    if student.role != "student":
-        raise HTTPException(
-            status_code=404,
-            detail="Student not found.",
-        )
+        try:
 
-    # --------------------------------------------------------
+            return await (
+                service.get_student_dashboard_by_id(
+                    user_id=student_id,
+
+                    include_college_package=False,
+                )
+            )
+
+        except ValueError as exc:
+
+            raise HTTPException(
+                status_code=404,
+                detail=str(exc),
+            )
+
+    # ========================================================
+    # COLLEGE ADMIN
+    # ========================================================
+    #
     # College admin can only view students
-    # from their own college
-    # --------------------------------------------------------
+    # from their own college.
+    #
+    # College package IS returned.
+    #
 
-    if student.college_id != current_user.college_id:
-        raise HTTPException(
-            status_code=403,
-            detail="You are not authorized to view this student.",
+    if current_user.role == "college_admin":
+
+        student = await session.get(
+            User,
+            student_id,
         )
 
-    # --------------------------------------------------------
-    # Existing dashboard service
-    # --------------------------------------------------------
+        if student is None:
 
-    service = DashboardService(session)
+            raise HTTPException(
+                status_code=404,
+                detail="Student not found.",
+            )
 
-    try:
+        if student.role != "student":
 
-        return await service.get_student_dashboard(
-            student_id
-        )
+            raise HTTPException(
+                status_code=404,
+                detail="Student not found.",
+            )
 
-    except ValueError as exc:
+        if (
+            student.college_id
+            != current_user.college_id
+        ):
 
-        raise HTTPException(
-            status_code=404,
-            detail=str(exc),
-        )
+            raise HTTPException(
+                status_code=403,
+                detail=(
+                    "You are not authorized "
+                    "to view this student."
+                ),
+            )
+
+        try:
+
+            return await (
+                service.get_student_dashboard_by_id(
+                    user_id=student_id,
+
+                    include_college_package=True,
+                )
+            )
+
+        except ValueError as exc:
+
+            raise HTTPException(
+                status_code=404,
+                detail=str(exc),
+            )
+
+    # ========================================================
+    # OTHER ROLES
+    # ========================================================
+
+    raise HTTPException(
+        status_code=403,
+        detail=(
+            "You are not authorized "
+            "to view student dashboards."
+        ),
+    )

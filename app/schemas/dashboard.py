@@ -5,7 +5,6 @@ from pydantic import BaseModel
 # ADMIN DASHBOARD
 # ============================================================
 
-
 class RecentlyActiveStudent(BaseModel):
     name: str
     email: str | None = None
@@ -29,24 +28,44 @@ class AdminDashboardResponse(BaseModel):
     daily_active: int
     monthly_active: int
 
-    recently_active_students: list[RecentlyActiveStudent]
+    recently_active_students: list[
+        RecentlyActiveStudent
+    ]
 
 
 # ============================================================
-# COLLEGE PACKAGE
+# COLLEGE PACKAGE COURSE
 # ============================================================
 
+class StudentCollegePackageCourse(BaseModel):
+    id: str
+    title: str
+    description: str | None = None
+    language: str
+    difficulty: str
+    duration: str | None = None
+    thumbnail: str | None = None
+    status: str
+
+
+# ============================================================
+# STUDENT COLLEGE PACKAGE
+# ============================================================
 
 class StudentCollegePackage(BaseModel):
     id: str
     package_name: str
     description: str | None = None
+    course_count: int = 0
+
+    courses: list[
+        StudentCollegePackageCourse
+    ]
 
 
 # ============================================================
-# STUDENT DASHBOARD
+# STUDENT COURSE
 # ============================================================
-
 
 class StudentCourseDashboardItem(BaseModel):
     course_id: str
@@ -59,18 +78,26 @@ class StudentCourseDashboardItem(BaseModel):
     progress_percentage: float
 
 
+# ============================================================
+# STUDENT DASHBOARD
+# ============================================================
+
 class StudentDashboardResponse(BaseModel):
     name: str
 
     xp: int
     streak: int
 
-    # COLLEGE PACKAGE
-    college_packages: list[StudentCollegePackage]
-
-    # ALL COURSES ENROLLED BY THE STUDENT
-    continue_courses: list[StudentCourseDashboardItem]
+    continue_courses: list[
+        StudentCourseDashboardItem
+    ]
 
     achievements: list[str]
+
     recently_completed: list[str]
+
     certificates: list[str]
+
+    college_packages: list[
+        StudentCollegePackage
+    ] | None = None
