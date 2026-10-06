@@ -97,3 +97,22 @@ async def get_current_company_admin(
         )
 
     return current_user
+async def get_current_college_admin(
+    current_user: User = Depends(
+        get_current_user
+    ),
+) -> User:
+
+    if current_user.role != "college_admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="College admin access required.",
+        )
+
+    if current_user.college_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="College admin is not linked to a college.",
+        )
+
+    return current_user

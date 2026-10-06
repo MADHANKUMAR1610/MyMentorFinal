@@ -24,7 +24,8 @@ from app.schemas.college import (
 from app.services.college_service import (
     CollegeService,
 )
-
+from app.core.security import hash_password
+from app.repositories.user_repository import UserRepository
 
 router = APIRouter(
     prefix="/colleges",
@@ -98,24 +99,66 @@ async def create_college(
     )
 
     try:
+        # --------------------------------------------------------
+        # CREATE COLLEGE
+        # --------------------------------------------------------
 
-        created_college = (
-            await service.create(
-                college
-            )
+        created_college = await service.create(
+            college
         )
+
+        # --------------------------------------------------------
+        # CHECK ADMIN EMAIL
+        # --------------------------------------------------------
+
+        user_repository = UserRepository(
+            session
+        )
+
+        existing_admin = await user_repository.get_by_email(
+            data.admin_email
+        )
+
+        if existing_admin is not None:
+            await session.rollback()
+
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="A user with this admin email already exists.",
+            )
+
+        # --------------------------------------------------------
+        # CREATE COLLEGE ADMIN USER
+        # --------------------------------------------------------
+
+        college_admin = User(
+            name=f"{created_college.name} Admin",
+            email=data.admin_email,
+            password_hash=hash_password(
+                data.admin_password
+            ),
+            role="college_admin",
+            college_id=created_college.id,
+            is_active=True,
+            is_verified=True,
+        )
+
+        await user_repository.create(
+            college_admin
+        )
+
+        # --------------------------------------------------------
+        # COMMIT BOTH COLLEGE + ADMIN
+        # --------------------------------------------------------
 
         await session.commit()
 
     except IntegrityError:
-
         await session.rollback()
 
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=(
-                "College code already exists."
-            ),
+            detail="College or admin email already exists.",
         )
 
     return CollegeResponse.model_validate(

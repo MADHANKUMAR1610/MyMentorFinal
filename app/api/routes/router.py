@@ -153,6 +153,9 @@ from app.api.routes.student_import import (
 from app.api.routes.skill_assessment import (
     router as skill_assessment_router,
 )
+from app.api.routes.college_admin import (
+    router as college_admin_router,
+)
 # ============================================================
 # MAIN API ROUTER
 # ============================================================
@@ -487,4 +490,7 @@ api_router.include_router(
 )
 api_router.include_router(
     skill_assessment_router
+)
+api_router.include_router(
+    college_admin_router
 )

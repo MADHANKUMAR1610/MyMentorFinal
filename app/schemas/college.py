@@ -4,6 +4,7 @@ from uuid import UUID
 from pydantic import (
     BaseModel,
     ConfigDict,
+    EmailStr,
     Field,
     field_validator,
 )
@@ -35,7 +36,13 @@ class CollegeCreate(BaseModel):
         min_length=2,
         max_length=255,
     )
+    admin_email: EmailStr
 
+    admin_password: str = Field(
+        ...,
+        min_length=8,
+        max_length=128,
+    )
     
 
     college_type: str | None = None
