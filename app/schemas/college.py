@@ -299,7 +299,7 @@ class CollegeResponse(BaseModel):
     id: UUID
 
     name: str
-
+    
     code: str
 
     college_type: str | None
@@ -337,3 +337,7 @@ class CollegeResponse(BaseModel):
     created_at: datetime
 
     updated_at: datetime
+    
+    admin_email: str | None = None
+    
+    admin_password: str | None = None

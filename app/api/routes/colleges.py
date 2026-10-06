@@ -8,6 +8,8 @@ from fastapi import (
     status,
 )
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy import select
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import (
@@ -218,21 +220,65 @@ async def get_colleges(
     )
 
     colleges = await service.get_colleges(
-        search=search,
-        college_type=college_type,
-        status=college_status,
-        city=city,
-        state=state,
-        skip=skip,
-        limit=limit,
-    )
+    search=search,
+    college_type=college_type,
+    status=college_status,
+    city=city,
+    state=state,
+    skip=skip,
+    limit=limit,
+)
 
-    return [
-        CollegeResponse.model_validate(
-            college
-        )
+    # --------------------------------------------------------
+    # GET COLLEGE ADMIN EMAILS
+    # --------------------------------------------------------
+
+    college_ids = [
+        college.id
         for college in colleges
     ]
+
+    admin_result = await session.execute(
+        select(
+            User.college_id,
+            User.email,
+            User.password_hash,
+        )
+        .where(
+            User.college_id.in_(college_ids),
+            User.role == "college_admin",
+        )
+    )
+
+    admin_map = {
+        row.college_id: {
+            "email": row.email,
+            "password": "********" if row.password_hash else None,
+        }
+        for row in admin_result.all()
+    }
+
+    # --------------------------------------------------------
+    # BUILD RESPONSE
+    # --------------------------------------------------------
+
+    responses = []
+
+    for college in colleges:
+
+        response = CollegeResponse.model_validate(
+            college
+        )
+
+        admin = admin_map.get(college.id)
+
+        if admin:
+            response.admin_email = admin["email"]
+            response.admin_password = admin["password"]
+
+        responses.append(response)
+
+    return responses
 
 
 # ============================================================
@@ -271,9 +317,40 @@ async def get_college(
             detail="College not found.",
         )
 
-    return CollegeResponse.model_validate(
+    # --------------------------------------------------------
+    # GET COLLEGE ADMIN
+    # --------------------------------------------------------
+
+    admin_result = await session.execute(
+        select(
+            User.email,
+            User.password_hash,
+        )
+        .where(
+            User.college_id == college.id,
+            User.role == "college_admin",
+        )
+    )
+
+    admin = admin_result.first()
+
+    # --------------------------------------------------------
+    # BUILD RESPONSE
+    # --------------------------------------------------------
+
+    response = CollegeResponse.model_validate(
         college
     )
+
+    if admin:
+        response.admin_email = admin.email
+        response.admin_password = (
+            "********"
+            if admin.password_hash
+            else None
+        )
+
+    return response
 
 
 # ============================================================
