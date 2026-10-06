@@ -1,16 +1,17 @@
 import uuid
 
-from app.models.user_profile import UserProfile
-from app.models.user import User
-from app.repositories.user_profile_repository import (
-    UserProfileRepository,
-)
-from datetime import date, timedelta
 from sqlalchemy import select, func
 
+from app.models.user_profile import UserProfile
+from app.models.user import User
 from app.models.progress import Progress
 from app.models.level import Level
 from app.models.job_application import JobApplication
+
+from app.repositories.user_profile_repository import (
+    UserProfileRepository,
+)
+
 
 class UserProfileService:
 
@@ -107,6 +108,7 @@ class UserProfileService:
             profile.profile_photo
             and not profile.profile_photo.is_deleted
         ):
+
             profile_photo_url = (
                 profile.profile_photo.public_url
             )
@@ -122,6 +124,7 @@ class UserProfileService:
             profile.resume_file
             and not profile.resume_file.is_deleted
         ):
+
             resume_url = (
                 profile.resume_file.public_url
             )
@@ -135,17 +138,25 @@ class UserProfileService:
         # =====================================================
 
         return {
+
             "id": profile.id,
+
             "user_id": profile.user_id,
 
             "dob": profile.dob,
+
             "age": profile.age,
 
             "profile_category": profile.profile_category,
+
             "education": profile.education,
+
             "class_year": profile.class_year,
+
             "institution": profile.institution,
+
             "career_goal": profile.career_goal,
+
             "career_interests": profile.career_interests,
 
             # =================================================
@@ -187,6 +198,7 @@ class UserProfileService:
             # =================================================
 
             "created_at": profile.created_at,
+
             "updated_at": profile.updated_at,
         }
 
@@ -198,6 +210,7 @@ class UserProfileService:
         self,
         user_id: uuid.UUID,
     ):
+
         """
         Calculate the user's profile summary dynamically.
         """
@@ -241,7 +254,9 @@ class UserProfileService:
             )
         )
 
-        completed_levels = completed_result.scalar_one() or 0
+        completed_levels = (
+            completed_result.scalar_one() or 0
+        )
 
         # =========================================================
         # TOTAL LEVELS
@@ -251,7 +266,9 @@ class UserProfileService:
             select(func.count(Level.id))
         )
 
-        total_levels = total_levels_result.scalar_one() or 0
+        total_levels = (
+            total_levels_result.scalar_one() or 0
+        )
 
         # =========================================================
         # XP
@@ -287,20 +304,35 @@ class UserProfileService:
             )
         )
 
-        applications = applications_result.scalar_one() or 0
+        applications = (
+            applications_result.scalar_one() or 0
+        )
 
         # =========================================================
-        # DAILY LOGIN STREAK
+        # LEARNING STREAK
         # =========================================================
         #
-        # Streak is based on USER LOGIN activity,
-        # NOT Progress activity.
+        # Streak is based on successful learning activity.
         #
-        # User.streak      -> current consecutive login days
-        # User.last_active -> last date the user was active
+        # User.streak      -> current learning streak
+        # User.last_active -> last learning activity date
+        #
+        # Login does NOT update the streak.
+        #
+        # The streak is updated by:
+        #
+        # - Successful checkpoint completion
+        # - Complete MCQ level
+        # - Video completion
+        #
+        # through:
+        #
+        # LevelService.record_learning_activity()
         #
 
-        day_streak = int(user.streak or 0)
+        day_streak = int(
+            user.streak or 0
+        )
 
         # =========================================================
         # PROFILE SCORE
@@ -325,121 +357,31 @@ class UserProfileService:
         # =========================================================
 
         return {
+
             "id": user_id,
+
             "name": user.name or "",
+
             "score": profile_score,
+
             "badge": badge,
+
             "xp": int(xp),
+
             "day_streak": day_streak,
-            "completed_levels": int(completed_levels),
-            "total_levels": int(total_levels),
-            "applications": int(applications),
+
+            "completed_levels": int(
+                completed_levels
+            ),
+
+            "total_levels": int(
+                total_levels
+            ),
+
+            "applications": int(
+                applications
+            ),
         }
-
-    # =========================================================
-    # UPDATE DAILY LOGIN STREAK
-    # =========================================================
-# ============================================================
-# UPDATE DAILY LOGIN STREAK
-# ============================================================
-
-    async def update_login_streak(
-    self,
-    user_id: uuid.UUID,
-):
-        """
-        Update the user's daily login streak.
-
-        Rules:
-        - First login                 -> streak = 1
-        - Login again same day        -> streak unchanged
-        - Login next consecutive day  -> streak + 1
-        - Miss one or more days       -> streak = 1
-        """
-
-        # ========================================================
-        # GET USER
-        # ========================================================
-
-        user_result = await self.db.execute(
-            select(User).where(
-                User.id == user_id
-            )
-        )
-
-        user = user_result.scalar_one_or_none()
-
-        if user is None:
-            raise ValueError("User not found")
-
-        # ========================================================
-        # TODAY
-        # ========================================================
-
-        today = date.today()
-        today_str = today.isoformat()
-
-        yesterday_str = (
-            today - timedelta(days=1)
-        ).isoformat()
-
-        # ========================================================
-        # FIRST LOGIN
-        # ========================================================
-
-        if not user.last_active:
-
-            user.streak = 1
-            user.last_active = today_str
-
-        else:
-
-            last_active = str(
-                user.last_active
-            )
-
-            # ====================================================
-            # ALREADY LOGGED IN TODAY
-            # ====================================================
-
-            if last_active == today_str:
-
-                # Do nothing.
-                # Multiple logins on the same day
-                # do not increase the streak.
-
-                pass
-
-            # ====================================================
-            # LOGGED IN YESTERDAY
-            # ====================================================
-
-            elif last_active == yesterday_str:
-
-                user.streak = (
-                    user.streak or 0
-                ) + 1
-
-                user.last_active = today_str
-
-            # ====================================================
-            # MISSED ONE OR MORE DAYS
-            # ====================================================
-
-            else:
-
-                user.streak = 1
-                user.last_active = today_str
-
-        # ========================================================
-        # SAVE
-        # ========================================================
-
-        await self.db.commit()
-
-        await self.db.refresh(user)
-
-        return int(user.streak or 0)
 
     # =========================================================
     # CALCULATE PROFILE SCORE
@@ -451,6 +393,7 @@ class UserProfileService:
     ) -> int:
 
         total_fields = 8
+
         completed_fields = 0
 
         if profile.dob:
@@ -519,23 +462,31 @@ class UserProfileService:
         )
 
         if not profile:
+
             return {
+
                 "total_score": 0,
+
                 "max_score": 100,
 
                 "career_clarity": 0,
+
                 "career_clarity_max": 25,
 
                 "learning_progress": 0,
+
                 "learning_progress_max": 25,
 
                 "profile_completeness": 0,
+
                 "profile_completeness_max": 25,
 
                 "consistency": 0,
+
                 "consistency_max": 25,
 
                 "job_readiness": 0,
+
                 "job_readiness_max": 25,
             }
 
@@ -567,14 +518,16 @@ class UserProfileService:
 
         # Currently no learning-progress data
         # is connected
+
         learning_progress = 0
 
         # =====================================================
         # CONSISTENCY
         # =====================================================
 
-        # Currently no activity/streak data
-        # is connected
+        # Currently no separate activity/streak
+        # data is connected here.
+
         consistency = 0
 
         # =====================================================
@@ -606,21 +559,28 @@ class UserProfileService:
         # =====================================================
 
         return {
+
             "total_score": total_score,
+
             "max_score": 125,
 
             "career_clarity": career_clarity,
+
             "career_clarity_max": 25,
 
             "learning_progress": learning_progress,
+
             "learning_progress_max": 25,
 
             "profile_completeness": profile_score,
+
             "profile_completeness_max": 100,
 
             "consistency": consistency,
+
             "consistency_max": 25,
 
             "job_readiness": job_readiness,
+
             "job_readiness_max": 25,
         }
