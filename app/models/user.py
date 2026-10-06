@@ -169,3 +169,7 @@ class User(
         uselist=False,
         cascade="all, delete-orphan",
     )
+    admin_password_encrypted: Mapped[str | None] = mapped_column(
+        String(500),
+        nullable=True,
+    )
