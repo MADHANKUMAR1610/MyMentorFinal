@@ -1,4 +1,3 @@
-from datetime import datetime, timedelta, timezone
 from typing import Optional
 from uuid import UUID
 
@@ -8,13 +7,25 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.user import User
 from app.models.progress import Progress
 from app.models.course_enrollment import CourseEnrollment
-from app.repositories.base import BaseRepository
 from app.models.college import College
+
+from app.repositories.base import BaseRepository
+
 
 class UserRepository(BaseRepository[User]):
 
-    def __init__(self, session: AsyncSession):
-        super().__init__(User, session)
+    def __init__(
+        self,
+        session: AsyncSession,
+    ):
+        super().__init__(
+            User,
+            session
+        )
+
+    # =========================================================
+    # GET USER BY EMAIL
+    # =========================================================
 
     async def get_by_email(
         self,
@@ -29,6 +40,10 @@ class UserRepository(BaseRepository[User]):
 
         return result.scalar_one_or_none()
 
+    # =========================================================
+    # GET USER BY PHONE
+    # =========================================================
+
     async def get_by_phone(
         self,
         phone: str,
@@ -42,6 +57,10 @@ class UserRepository(BaseRepository[User]):
 
         return result.scalar_one_or_none()
 
+    # =========================================================
+    # GET USER BY GOOGLE ID
+    # =========================================================
+
     async def get_by_google_id(
         self,
         google_id: str,
@@ -54,16 +73,18 @@ class UserRepository(BaseRepository[User]):
         )
 
         return result.scalar_one_or_none()
-# =========================================================
+
+    # =========================================================
     # GET STUDENTS WITH PROGRESS
     # =========================================================
 
     async def get_students_with_progress(
-    self,
-    *,
-    skip: int = 0,
-    limit: int = 100,
-):
+        self,
+        *,
+        skip: int = 0,
+        limit: int = 100,
+    ):
+
         result = await self.session.execute(
             select(
                 User,
@@ -71,6 +92,7 @@ class UserRepository(BaseRepository[User]):
                 # ---------------------------------------------
                 # COLLEGE DETAILS
                 # ---------------------------------------------
+
                 College.id.label(
                     "college_id"
                 ),
@@ -86,6 +108,7 @@ class UserRepository(BaseRepository[User]):
                 # ---------------------------------------------
                 # COMPLETED LEVELS
                 # ---------------------------------------------
+
                 func.count(
                     func.distinct(
                         Progress.level_id
@@ -101,6 +124,7 @@ class UserRepository(BaseRepository[User]):
                 # ---------------------------------------------
                 # ENROLLED COURSES
                 # ---------------------------------------------
+
                 func.count(
                     func.distinct(
                         CourseEnrollment.course_id
@@ -114,6 +138,7 @@ class UserRepository(BaseRepository[User]):
             # ---------------------------------------------
             # PROGRESS
             # ---------------------------------------------
+
             .outerjoin(
                 Progress,
                 Progress.user_id == User.id,
@@ -122,6 +147,7 @@ class UserRepository(BaseRepository[User]):
             # ---------------------------------------------
             # COURSE ENROLLMENTS
             # ---------------------------------------------
+
             .outerjoin(
                 CourseEnrollment,
                 CourseEnrollment.user_id == User.id,
@@ -130,6 +156,7 @@ class UserRepository(BaseRepository[User]):
             # ---------------------------------------------
             # COLLEGE
             # ---------------------------------------------
+
             .outerjoin(
                 College,
                 College.id == User.college_id,
@@ -156,69 +183,55 @@ class UserRepository(BaseRepository[User]):
 
         return result.all()
 
+    # =========================================================
+    # GET STUDENT STREAK
+    # =========================================================
+
     async def get_student_streak(
         self,
         user_id: UUID,
     ) -> int:
         """
-        Calculate the student's current learning streak
-        based on Progress.updated_at.
+        Get the student's current learning streak.
 
-        A day counts when the student has progress activity
-        on that date.
+        The streak is stored directly on the User model.
+
+        User.streak:
+            Current consecutive learning days.
+
+        User.last_active:
+            Last successful learning activity date.
+
+        The streak is updated by:
+            - Successful checkpoint completion
+            - Complete MCQ level
+            - Video completion
+
+        Login does NOT update the learning streak.
         """
 
         result = await self.session.execute(
             select(
-                func.date(Progress.updated_at).label("activity_date")
+                User.streak
             )
             .where(
-                Progress.user_id == user_id
-            )
-            .group_by(
-                func.date(Progress.updated_at)
-            )
-            .order_by(
-                func.date(Progress.updated_at).desc()
+                User.id == user_id
             )
         )
 
-        activity_dates = [
-            row.activity_date
-            for row in result.all()
-        ]
+        streak = result.scalar_one_or_none()
 
-        if not activity_dates:
+        if streak is None:
             return 0
 
-        today = datetime.now(timezone.utc).date()
+        return int(
+            streak or 0
+        )
 
-        # --------------------------------------------------------
-        # If the student has no activity today, allow the streak
-        # to start from yesterday.
-        # --------------------------------------------------------
+    # =========================================================
+    # GET USER BY STUDENT CODE
+    # =========================================================
 
-        latest_date = activity_dates[0]
-
-        if latest_date == today:
-            expected_date = today
-        elif latest_date == today - timedelta(days=1):
-            expected_date = today - timedelta(days=1)
-        else:
-            return 0
-
-        streak = 0
-
-        for activity_date in activity_dates:
-
-            if activity_date == expected_date:
-                streak += 1
-                expected_date -= timedelta(days=1)
-
-            elif activity_date < expected_date:
-                break
-
-        return streak
     async def get_by_student_code(
         self,
         student_code: str,
@@ -231,6 +244,11 @@ class UserRepository(BaseRepository[User]):
         )
 
         return result.scalar_one_or_none()
+
+    # =========================================================
+    # GET STUDENTS BY COLLEGE
+    # =========================================================
+
     async def get_students_by_college(
         self,
         college_id: UUID,
@@ -242,7 +260,11 @@ class UserRepository(BaseRepository[User]):
                 User.college_id == college_id,
                 User.role == "student",
             )
-            .order_by(User.created_at.asc())
+            .order_by(
+                User.created_at.asc()
+            )
         )
 
-        return list(result.scalars().all())
+        return list(
+            result.scalars().all()
+        )

@@ -334,7 +334,9 @@ async def update_level(
         level.video = data.video
 
     if data.theory is not None:
-     level.theory = data.theory.model_dump()
+      level.theory = data.theory.model_dump(
+        exclude_none=False
+    )
 
     updated_level = await service.update_level(level)
 
