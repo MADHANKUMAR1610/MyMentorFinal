@@ -7,6 +7,7 @@ from app.repositories.dashboard_repository import (
 from app.schemas.dashboard import (
     AdminDashboardResponse,
     RecentlyActiveStudent,
+    StudentCollegePackage,
     StudentCourseDashboardItem,
     StudentDashboardResponse,
 )
@@ -75,15 +76,15 @@ class DashboardService:
         )
 
         recently_active_students = [
-    RecentlyActiveStudent(
-        name=row["name"],
-        email=row["email"],
-        xp=row["xp"],
-        streak=row["streak"],
-        levels=row["levels"],
-    )
-    for row in student_rows
-]
+            RecentlyActiveStudent(
+                name=row["name"],
+                email=row["email"],
+                xp=row["xp"],
+                streak=row["streak"],
+                levels=row["levels"],
+            )
+            for row in student_rows
+        ]
 
         return AdminDashboardResponse(
             total_students=total_students,
@@ -105,7 +106,7 @@ class DashboardService:
             ),
         )
 
-        # ========================================================
+    # ========================================================
     # STUDENT DASHBOARD
     # ========================================================
 
@@ -113,6 +114,10 @@ class DashboardService:
         self,
         user_id,
     ) -> StudentDashboardResponse:
+
+        # ----------------------------------------------------
+        # Student
+        # ----------------------------------------------------
 
         user = (
             await self.repository.get_student_user(
@@ -124,6 +129,26 @@ class DashboardService:
             raise ValueError(
                 "Student not found."
             )
+
+        # ----------------------------------------------------
+        # College Packages
+        # ----------------------------------------------------
+
+        package_rows = (
+            await self.repository
+            .get_student_college_packages(
+                user_id
+            )
+        )
+
+        college_packages = [
+            StudentCollegePackage(
+                id=str(row.id),
+                package_name=row.package_name,
+                description=row.description,
+            )
+            for row in package_rows
+        ]
 
         # ----------------------------------------------------
         # Get ALL courses enrolled by this student
@@ -178,15 +203,10 @@ class DashboardService:
             )
 
         # ----------------------------------------------------
-        # Calculate REAL-TIME student streak
-        # from Progress.updated_at
+        # Student streak
         # ----------------------------------------------------
 
-        streak = (
-            await self.repository.get_student_streak(
-                user_id
-            )
-        )
+        streak = user.streak or 0
 
         # ----------------------------------------------------
         # Completed courses
@@ -208,10 +228,9 @@ class DashboardService:
 
             xp=user.xp or 0,
 
-            # IMPORTANT:
-            # Do NOT use user.streak here.
-            # This is calculated from Progress.
             streak=streak,
+
+            college_packages=college_packages,
 
             # ALL ENROLLED COURSES
             continue_courses=courses,

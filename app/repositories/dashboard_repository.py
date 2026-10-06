@@ -1,6 +1,8 @@
 from sqlalchemy import func, select
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.college_package import CollegePackage
 from app.models.checkpoint import Checkpoint
 from app.models.course import Course
 from app.models.level import Level
@@ -479,3 +481,37 @@ class DashboardRepository:
         return int(
             streak or 0
         )
+
+    # ========================================================
+    # COLLEGE PACKAGES
+    # ========================================================
+
+    async def get_student_college_packages(
+        self,
+        user_id,
+    ):
+        """
+        Get all college packages belonging
+        to the student's college.
+        """
+
+        result = await self.session.execute(
+            select(
+                CollegePackage.id,
+                CollegePackage.package_name,
+                CollegePackage.description,
+            )
+            .join(
+                User,
+                User.college_id
+                == CollegePackage.college_id,
+            )
+            .where(
+                User.id == user_id
+            )
+            .order_by(
+                CollegePackage.created_at.desc()
+            )
+        )
+
+        return result.all()

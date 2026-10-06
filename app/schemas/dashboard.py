@@ -5,6 +5,7 @@ from pydantic import BaseModel
 # ADMIN DASHBOARD
 # ============================================================
 
+
 class RecentlyActiveStudent(BaseModel):
     name: str
     email: str | None = None
@@ -32,8 +33,20 @@ class AdminDashboardResponse(BaseModel):
 
 
 # ============================================================
+# COLLEGE PACKAGE
+# ============================================================
+
+
+class StudentCollegePackage(BaseModel):
+    id: str
+    package_name: str
+    description: str | None = None
+
+
+# ============================================================
 # STUDENT DASHBOARD
 # ============================================================
+
 
 class StudentCourseDashboardItem(BaseModel):
     course_id: str
@@ -51,6 +64,9 @@ class StudentDashboardResponse(BaseModel):
 
     xp: int
     streak: int
+
+    # COLLEGE PACKAGE
+    college_packages: list[StudentCollegePackage]
 
     # ALL COURSES ENROLLED BY THE STUDENT
     continue_courses: list[StudentCourseDashboardItem]

@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import (
     get_current_admin,
+    get_current_college_admin,
     get_current_user,
 )
 from app.database.database import get_db
@@ -80,7 +81,8 @@ async def get_student_skillhub_dashboard(
 
 
 # ============================================================
-# ADMIN - VIEW PARTICULAR STUDENT SKILLHUB DASHBOARD
+# COLLEGE ADMIN
+# VIEW PARTICULAR STUDENT DASHBOARD
 # ============================================================
 
 @router.get(
@@ -90,12 +92,52 @@ async def get_student_skillhub_dashboard(
 async def get_student_skillhub_dashboard_by_id(
     student_id: UUID,
     current_user: User = Depends(
-        get_current_admin
+        get_current_college_admin
     ),
     session: AsyncSession = Depends(
         get_db
     ),
 ):
+
+    # --------------------------------------------------------
+    # Find student
+    # --------------------------------------------------------
+
+    student = await session.get(
+        User,
+        student_id,
+    )
+
+    if student is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Student not found.",
+        )
+
+    # --------------------------------------------------------
+    # Make sure selected user is a student
+    # --------------------------------------------------------
+
+    if student.role != "student":
+        raise HTTPException(
+            status_code=404,
+            detail="Student not found.",
+        )
+
+    # --------------------------------------------------------
+    # College admin can only view students
+    # from their own college
+    # --------------------------------------------------------
+
+    if student.college_id != current_user.college_id:
+        raise HTTPException(
+            status_code=403,
+            detail="You are not authorized to view this student.",
+        )
+
+    # --------------------------------------------------------
+    # Existing dashboard service
+    # --------------------------------------------------------
 
     service = DashboardService(session)
 
