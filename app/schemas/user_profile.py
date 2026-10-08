@@ -45,10 +45,16 @@ class UserProfileCreate(BaseModel):
 
     career_interests: str | None = None
 
-    # Profile photo
+    # ========================================================
+    # PROFILE PHOTO
+    # ========================================================
+
     profile_photo_file_id: UUID | None = None
 
-    # Resume
+    # ========================================================
+    # RESUME
+    # ========================================================
+
     resume_file_id: UUID | None = None
 
 
@@ -57,6 +63,27 @@ class UserProfileCreate(BaseModel):
 # ============================================================
 
 class UserProfileUpdate(BaseModel):
+
+    # ========================================================
+    # USER NAME
+    # ========================================================
+
+    # Google login:
+    # Name can already come from Google authentication.
+    #
+    # OTP login:
+    # User can enter/edit the name from the profile form.
+    #
+    # This field is ultimately saved to users.name.
+
+    name: str | None = Field(
+        default=None,
+        max_length=150,
+    )
+
+    # ========================================================
+    # BASIC PROFILE
+    # ========================================================
 
     dob: date | None = None
 
@@ -93,10 +120,16 @@ class UserProfileUpdate(BaseModel):
 
     career_interests: str | None = None
 
-    # Profile photo
+    # ========================================================
+    # PROFILE PHOTO
+    # ========================================================
+
     profile_photo_file_id: UUID | None = None
 
-    # Resume
+    # ========================================================
+    # RESUME
+    # ========================================================
+
     resume_file_id: UUID | None = None
 
 
@@ -111,29 +144,56 @@ class UserProfileResponse(BaseModel):
     )
 
     id: UUID
+
     user_id: UUID
+
+    # Name comes from users.name
     name: str | None = None
 
+    # ========================================================
+    # BASIC PROFILE
+    # ========================================================
+
     dob: date | None
+
     age: int | None
+
     profile_category: str | None
+
     education: str | None
+
     class_year: str | None
+
     institution: str | None
+
     career_goal: str | None
+
     career_interests: str | None
 
-    # Profile photo
+    # ========================================================
+    # PROFILE PHOTO
+    # ========================================================
+
     profile_photo_file_id: UUID | None = None
+
     profile_photo_url: str | None = None
 
-    # Resume
-    
+    # ========================================================
+    # RESUME
+    # ========================================================
+
     resume_file_id: UUID | None = None
+
     resume_file_name: str | None = None
+
     resume_url: str | None = None
 
+    # ========================================================
+    # TIMESTAMPS
+    # ========================================================
+
     created_at: datetime
+
     updated_at: datetime
 
 

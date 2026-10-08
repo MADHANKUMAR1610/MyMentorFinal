@@ -3,14 +3,13 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload
 
 from app.api.dependencies import get_current_user
 from app.database.database import get_db
-
 from app.models.file import File
 from app.models.user import User
 from app.models.user_profile import UserProfile
-
 from app.schemas.user_profile import (
     UserProfileCreate,
     UserProfileResponse,
@@ -18,9 +17,6 @@ from app.schemas.user_profile import (
     ProfileSummaryResponse,
     ScoreBreakdownResponse,
 )
-from sqlalchemy import select
-from sqlalchemy.orm import joinedload
-
 from app.services.user_profile_service import UserProfileService
 
 
@@ -47,6 +43,8 @@ async def get_my_profile_summary(
     return await service.get_profile_summary(
         user_id=current_user.id,
     )
+
+
 # ============================================================
 # GET MY SCORE BREAKDOWN
 # ============================================================
@@ -65,10 +63,6 @@ async def get_my_score_breakdown(
     """
 
     service = UserProfileService(session)
-
-    profile = await service.get_by_user_id(
-        current_user.id
-    )
 
     return await service.get_score_breakdown(
         user_id=current_user.id,
@@ -89,7 +83,7 @@ async def get_my_profile(
 ):
     """
     Get the currently authenticated user's profile
-    including profile photo URL.
+    including profile photo URL and user name.
     """
 
     service = UserProfileService(session)
@@ -128,6 +122,10 @@ async def get_my_profile(
         if profile_photo is not None:
             profile_photo_url = profile_photo.public_url
 
+    # ---------------------------------------------------------
+    # Get resume details
+    # ---------------------------------------------------------
+
     resume_url = None
     resume_file_name = None
 
@@ -136,15 +134,19 @@ async def get_my_profile(
         and not profile.resume_file.is_deleted
     ):
         resume_url = profile.resume_file.public_url
-        resume_file_name = profile.resume_file.original_filename
+        resume_file_name = (
+            profile.resume_file.original_filename
+        )
+
     # ---------------------------------------------------------
     # Return profile
     # ---------------------------------------------------------
 
     return UserProfileResponse(
-       id=profile.id,
+        id=profile.id,
         user_id=profile.user_id,
 
+        # Name is stored in users.name
         name=current_user.name,
 
         dob=profile.dob,
@@ -156,11 +158,18 @@ async def get_my_profile(
         career_goal=profile.career_goal,
         career_interests=profile.career_interests,
 
-        profile_photo_file_id=profile.profile_photo_file_id,
-        resume_file_name=resume_file_name,
+        profile_photo_file_id=(
+            profile.profile_photo_file_id
+        ),
+
         profile_photo_url=profile_photo_url,
+
         resume_file_id=profile.resume_file_id,
+
+        resume_file_name=resume_file_name,
+
         resume_url=resume_url,
+
         created_at=profile.created_at,
         updated_at=profile.updated_at,
     )
@@ -216,7 +225,9 @@ async def create_my_profile(
             )
         )
 
-        profile_photo_file = result.scalar_one_or_none()
+        profile_photo_file = (
+            result.scalar_one_or_none()
+        )
 
         if profile_photo_file is None:
             raise HTTPException(
@@ -230,7 +241,10 @@ async def create_my_profile(
             "image/webp",
         }
 
-        if profile_photo_file.content_type not in allowed_content_types:
+        if (
+            profile_photo_file.content_type
+            not in allowed_content_types
+        ):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=(
@@ -266,10 +280,17 @@ async def create_my_profile(
         allowed_resume_types = {
             "application/pdf",
             "application/msword",
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            (
+                "application/"
+                "vnd.openxmlformats-officedocument."
+                "wordprocessingml.document"
+            ),
         }
 
-        if resume_file.content_type not in allowed_resume_types:
+        if (
+            resume_file.content_type
+            not in allowed_resume_types
+        ):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=(
@@ -284,23 +305,29 @@ async def create_my_profile(
 
     profile = UserProfile(
         user_id=current_user.id,
+
         dob=data.dob,
+
         age=data.age,
+
         profile_category=data.profile_category,
+
         education=data.education,
+
         class_year=data.class_year,
+
         institution=data.institution,
+
         career_goal=data.career_goal,
+
         career_interests=data.career_interests,
 
-        # IMPORTANT
         profile_photo_file_id=(
             profile_photo_file.id
             if profile_photo_file is not None
             else None
         ),
 
-        # IMPORTANT
         resume_file_id=(
             resume_file.id
             if resume_file is not None
@@ -321,19 +348,28 @@ async def create_my_profile(
         .options(
             joinedload(UserProfile.profile_photo),
             joinedload(UserProfile.resume_file),
+            joinedload(UserProfile.user),
         )
-        .where(UserProfile.id == created_profile.id)
+        .where(
+            UserProfile.id == created_profile.id
+        )
     )
 
-    created_profile = result.unique().scalar_one()
+    created_profile = (
+        result.unique().scalar_one()
+    )
 
     # ---------------------------------------------------------
     # Return response
     # ---------------------------------------------------------
 
     return UserProfileResponse.model_validate(
-    await service.build_profile_response(created_profile)
-)
+        service.build_profile_response(
+            created_profile
+        )
+    )
+
+
 # ============================================================
 # UPDATE MY PROFILE
 # ============================================================
@@ -350,10 +386,20 @@ async def update_my_profile(
     """
     Update the currently authenticated user's profile.
 
-    This endpoint also supports updating the profile photo.
+    Supports:
+    - User name
+    - Basic profile information
+    - Profile photo
+    - Resume
+
+    The name is stored in users.name.
     """
 
     service = UserProfileService(session)
+
+    # ---------------------------------------------------------
+    # Get profile
+    # ---------------------------------------------------------
 
     profile = await service.get_by_user_id(
         current_user.id
@@ -365,21 +411,36 @@ async def update_my_profile(
             detail="User profile not found.",
         )
 
-    # ========================================================
+    # =========================================================
+    # USER NAME
+    # =========================================================
+
+    if data.name is not None:
+
+        cleaned_name = data.name.strip()
+
+        if not cleaned_name:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Name cannot be empty.",
+            )
+
+        current_user.name = cleaned_name
+
+    # =========================================================
     # NORMAL PROFILE FIELDS
-    # ========================================================
+    # =========================================================
 
     if data.dob is not None:
         profile.dob = data.dob
-        
-    if data.name is not None:
-     current_user.name = data.name.strip()
 
     if data.age is not None:
         profile.age = data.age
 
     if data.profile_category is not None:
-        profile.profile_category = data.profile_category
+        profile.profile_category = (
+            data.profile_category
+        )
 
     if data.education is not None:
         profile.education = data.education
@@ -394,11 +455,13 @@ async def update_my_profile(
         profile.career_goal = data.career_goal
 
     if data.career_interests is not None:
-        profile.career_interests = data.career_interests
+        profile.career_interests = (
+            data.career_interests
+        )
 
-    # ========================================================
+    # =========================================================
     # PROFILE PHOTO
-    # ========================================================
+    # =========================================================
 
     if data.profile_photo_file_id is not None:
 
@@ -418,9 +481,9 @@ async def update_my_profile(
                 detail="Profile photo file not found.",
             )
 
-        # ----------------------------------------------------
+        # -----------------------------------------------------
         # Only images
-        # ----------------------------------------------------
+        # -----------------------------------------------------
 
         allowed_content_types = {
             "image/jpeg",
@@ -437,14 +500,15 @@ async def update_my_profile(
                 ),
             )
 
-        # ----------------------------------------------------
+        # -----------------------------------------------------
         # Save profile photo file ID
-        # ----------------------------------------------------
+        # -----------------------------------------------------
 
         profile.profile_photo_file_id = file.id
-    # ========================================================
+
+    # =========================================================
     # RESUME
-    # ========================================================
+    # =========================================================
 
     if data.resume_file_id is not None:
 
@@ -464,47 +528,79 @@ async def update_my_profile(
                 detail="Resume file not found.",
             )
 
-        # ----------------------------------------------------
+        # -----------------------------------------------------
         # Validate resume file type
-        # ----------------------------------------------------
+        # -----------------------------------------------------
 
         allowed_resume_types = {
             "application/pdf",
             "application/msword",
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            (
+                "application/"
+                "vnd.openxmlformats-officedocument."
+                "wordprocessingml.document"
+            ),
         }
 
-        if resume_file.content_type not in allowed_resume_types:
+        if (
+            resume_file.content_type
+            not in allowed_resume_types
+        ):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Only PDF, DOC, and DOCX files can be used as a resume.",
+                detail=(
+                    "Only PDF, DOC, and DOCX files "
+                    "can be used as a resume."
+                ),
             )
 
-        # ----------------------------------------------------
+        # -----------------------------------------------------
         # Save resume file ID
-        # ----------------------------------------------------
+        # -----------------------------------------------------
 
         profile.resume_file_id = resume_file.id
-    # ========================================================
-    # SAVE PROFILE
-    # ========================================================
 
-    updated_profile = await service.update_profile(profile)
+    # =========================================================
+    # SAVE PROFILE
+    # =========================================================
+
+    updated_profile = await service.update_profile(
+        profile
+    )
+
+    # Make sure the User name is persisted as well.
+    await session.flush()
+
+    # =========================================================
+    # RELOAD PROFILE WITH RELATIONSHIPS
+    # =========================================================
 
     result = await session.execute(
         select(UserProfile)
         .options(
             joinedload(UserProfile.profile_photo),
             joinedload(UserProfile.resume_file),
+            joinedload(UserProfile.user),
         )
-        .where(UserProfile.id == updated_profile.id)
+        .where(
+            UserProfile.id == updated_profile.id
+        )
     )
 
-    updated_profile = result.unique().scalar_one()
+    updated_profile = (
+        result.unique().scalar_one()
+    )
+
+    # =========================================================
+    # RETURN RESPONSE
+    # =========================================================
 
     return UserProfileResponse.model_validate(
-        await service.build_profile_response(updated_profile)
-)
+        service.build_profile_response(
+            updated_profile
+        )
+    )
+
 
 # ============================================================
 # DELETE MY PROFILE
@@ -563,11 +659,16 @@ async def get_profile_by_id(
         .options(
             joinedload(UserProfile.profile_photo),
             joinedload(UserProfile.resume_file),
+            joinedload(UserProfile.user),
         )
-        .where(UserProfile.id == profile_id)
+        .where(
+            UserProfile.id == profile_id
+        )
     )
 
-    profile = result.unique().scalar_one_or_none()
+    profile = (
+        result.unique().scalar_one_or_none()
+    )
 
     if profile is None:
         raise HTTPException(
@@ -576,5 +677,7 @@ async def get_profile_by_id(
         )
 
     return UserProfileResponse.model_validate(
-        service.build_profile_response(profile)
+        service.build_profile_response(
+            profile
+        )
     )

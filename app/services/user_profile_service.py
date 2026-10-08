@@ -1,19 +1,22 @@
 import uuid
 
-from sqlalchemy import select, func
+from sqlalchemy import func, select
 
-from app.models.user_profile import UserProfile
-from app.models.user import User
-from app.models.progress import Progress
-from app.models.level import Level
 from app.models.job_application import JobApplication
-
+from app.models.level import Level
+from app.models.progress import Progress
+from app.models.user import User
+from app.models.user_profile import UserProfile
 from app.repositories.user_profile_repository import (
     UserProfileRepository,
 )
 
 
 class UserProfileService:
+
+    # =========================================================
+    # INIT
+    # =========================================================
 
     def __init__(self, db):
 
@@ -134,20 +137,37 @@ class UserProfileService:
             )
 
         # =====================================================
+        # USER NAME
+        # =====================================================
+
+        user_name = None
+
+        if profile.user is not None:
+            user_name = profile.user.name
+
+        # =====================================================
         # RESPONSE
         # =====================================================
 
         return {
-
             "id": profile.id,
 
             "user_id": profile.user_id,
+
+            # Name comes from users table
+            "name": user_name,
+
+            # =================================================
+            # BASIC PROFILE
+            # =================================================
 
             "dob": profile.dob,
 
             "age": profile.age,
 
-            "profile_category": profile.profile_category,
+            "profile_category": (
+                profile.profile_category
+            ),
 
             "education": profile.education,
 
@@ -157,7 +177,9 @@ class UserProfileService:
 
             "career_goal": profile.career_goal,
 
-            "career_interests": profile.career_interests,
+            "career_interests": (
+                profile.career_interests
+            ),
 
             # =================================================
             # PROFILE PHOTO
@@ -215,9 +237,9 @@ class UserProfileService:
         Calculate the user's profile summary dynamically.
         """
 
-        # =========================================================
+        # =====================================================
         # GET USER
-        # =========================================================
+        # =====================================================
 
         user_result = await self.db.execute(
             select(User).where(
@@ -228,11 +250,13 @@ class UserProfileService:
         user = user_result.scalar_one_or_none()
 
         if user is None:
-            raise ValueError("User not found")
+            raise ValueError(
+                "User not found"
+            )
 
-        # =========================================================
+        # =====================================================
         # GET PROFILE
-        # =========================================================
+        # =====================================================
 
         profile_result = await self.db.execute(
             select(UserProfile).where(
@@ -240,11 +264,13 @@ class UserProfileService:
             )
         )
 
-        profile = profile_result.scalar_one_or_none()
+        profile = (
+            profile_result.scalar_one_or_none()
+        )
 
-        # =========================================================
+        # =====================================================
         # COMPLETED LEVELS
-        # =========================================================
+        # =====================================================
 
         completed_result = await self.db.execute(
             select(func.count(Progress.id))
@@ -258,9 +284,9 @@ class UserProfileService:
             completed_result.scalar_one() or 0
         )
 
-        # =========================================================
+        # =====================================================
         # TOTAL LEVELS
-        # =========================================================
+        # =====================================================
 
         total_levels_result = await self.db.execute(
             select(func.count(Level.id))
@@ -270,20 +296,20 @@ class UserProfileService:
             total_levels_result.scalar_one() or 0
         )
 
-        # =========================================================
+        # =====================================================
         # XP
-        # =========================================================
+        # =====================================================
 
         xp_result = await self.db.execute(
             select(
                 func.coalesce(
                     func.sum(Level.xp),
-                    0
+                    0,
                 )
             )
             .join(
                 Progress,
-                Progress.level_id == Level.id
+                Progress.level_id == Level.id,
             )
             .where(
                 Progress.user_id == user_id,
@@ -293,14 +319,15 @@ class UserProfileService:
 
         xp = xp_result.scalar_one() or 0
 
-        # =========================================================
+        # =====================================================
         # JOB APPLICATIONS
-        # =========================================================
+        # =====================================================
 
         applications_result = await self.db.execute(
             select(func.count(JobApplication.id))
             .where(
-                JobApplication.applicant_user_id == user_id
+                JobApplication.applicant_user_id
+                == user_id
             )
         )
 
@@ -308,13 +335,13 @@ class UserProfileService:
             applications_result.scalar_one() or 0
         )
 
-        # =========================================================
+        # =====================================================
         # LEARNING STREAK
-        # =========================================================
-        #
+        # =====================================================
+
         # Streak is based on successful learning activity.
         #
-        # User.streak      -> current learning streak
+        # User.streak -> current learning streak
         # User.last_active -> last learning activity date
         #
         # Login does NOT update the streak.
@@ -328,36 +355,36 @@ class UserProfileService:
         # through:
         #
         # LevelService.record_learning_activity()
-        #
 
         day_streak = int(
             user.streak or 0
         )
 
-        # =========================================================
+        # =====================================================
         # PROFILE SCORE
-        # =========================================================
+        # =====================================================
 
         profile_score = (
-            self._calculate_profile_score(profile)
+            self._calculate_profile_score(
+                profile
+            )
             if profile
             else 0
         )
 
-        # =========================================================
+        # =====================================================
         # BADGE
-        # =========================================================
+        # =====================================================
 
         badge = self._get_profile_badge(
             profile_score
         )
 
-        # =========================================================
+        # =====================================================
         # RETURN RESPONSE
-        # =========================================================
+        # =====================================================
 
         return {
-
             "id": user_id,
 
             "name": user.name or "",
@@ -464,7 +491,6 @@ class UserProfileService:
         if not profile:
 
             return {
-
                 "total_score": 0,
 
                 "max_score": 100,
@@ -517,7 +543,7 @@ class UserProfileService:
         # =====================================================
 
         # Currently no learning-progress data
-        # is connected
+        # is connected.
 
         learning_progress = 0
 
@@ -559,7 +585,6 @@ class UserProfileService:
         # =====================================================
 
         return {
-
             "total_score": total_score,
 
             "max_score": 125,
