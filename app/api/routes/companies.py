@@ -9,6 +9,7 @@ from fastapi import (
 )
 
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import func, select
 
 from app.api.dependencies import (
     get_current_user,
@@ -17,6 +18,7 @@ from app.api.dependencies import (
 from app.database.database import get_db
 
 from app.models.company import Company
+from app.models.job import Job
 from app.models.user import User
 
 from app.schemas.company import (
@@ -321,18 +323,64 @@ async def get_companies(
             )
         )
 
-    # --------------------------------------------------------
-    # RESPONSE
-    # --------------------------------------------------------
+    # ========================================================
+    # CALCULATE REAL OPEN ROLES
+    # ========================================================
 
-    return [
-        CompanyResponse.model_validate(
-            company
-        )
+    company_ids = [
+        company.id
         for company in companies
     ]
 
+    open_roles_map = {}
 
+    if company_ids:
+
+        result = await session.execute(
+            select(
+                Job.company_id,
+                func.count(Job.id),
+            )
+            .where(
+                Job.company_id.in_(company_ids),
+                Job.status == "active",
+            )
+            .group_by(
+                Job.company_id
+            )
+        )
+
+        open_roles_map = {
+            company_id: count
+            for company_id, count in result.all()
+        }
+
+    # ========================================================
+    # BUILD RESPONSE
+    # ========================================================
+
+    responses = []
+
+    for company in companies:
+
+        response = (
+            CompanyResponse.model_validate(
+                company
+            )
+        )
+
+        response.open_roles = (
+            open_roles_map.get(
+                company.id,
+                0
+            )
+        )
+
+        responses.append(
+            response
+        )
+
+    return responses
 # ============================================================
 # GET COMPANY BY ID
 # ============================================================

@@ -300,6 +300,7 @@ class CollegeResponse(BaseModel):
 
     name: str
     
+    
     code: str
 
     college_type: str | None

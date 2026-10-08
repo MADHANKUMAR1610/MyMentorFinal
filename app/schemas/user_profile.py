@@ -112,6 +112,7 @@ class UserProfileResponse(BaseModel):
 
     id: UUID
     user_id: UUID
+    name: str | None = None
 
     dob: date | None
     age: int | None

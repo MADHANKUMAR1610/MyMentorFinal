@@ -1,20 +1,32 @@
 from uuid import UUID
 
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
+
 from app.models.job_application import JobApplication
+
 from app.repositories.job_application_repository import (
     JobApplicationRepository,
 )
+
 from app.services.audit_log_service import AuditLogService
+
 from app.services.user_profile_service import UserProfileService
+
 from app.schemas.job_application import JobApplicationResponse
+
 from app.models.job import Job
+
 from app.services.job_matching_service import JobMatchingService
 
+
 # ============================================================
+
 # ALLOWED APPLICATION STATUSES
+
 # ============================================================
+
 
 ALLOWED_APPLICATION_STATUSES = {
     "submitted",
@@ -44,6 +56,7 @@ class JobApplicationService:
     """
 
     def __init__(self, session: AsyncSession):
+
         self.session = session
 
         self.repository = JobApplicationRepository(session)
@@ -51,7 +64,9 @@ class JobApplicationService:
         self.audit_service = AuditLogService(session)
 
         self.user_profile_service = UserProfileService(session)
+
         self.matching_service = JobMatchingService()
+
     # ============================================================
     # GET APPLICATION BY ID
     # ============================================================
@@ -132,6 +147,7 @@ class JobApplicationService:
     ) -> list[JobApplication]:
 
         if status not in ALLOWED_APPLICATION_STATUSES:
+
             raise ValueError(
                 f"Invalid application status: {status}"
             )
@@ -208,6 +224,7 @@ class JobApplicationService:
         Submit a new job application.
 
         Authenticated applicants are checked by user ID.
+
         Guest applicants are checked by email.
         """
 
@@ -216,6 +233,7 @@ class JobApplicationService:
         # --------------------------------------------------------
 
         if not application.email:
+
             raise ValueError(
                 "Applicant email is required."
             )
@@ -229,12 +247,14 @@ class JobApplicationService:
         # --------------------------------------------------------
 
         if not application.status:
+
             application.status = "submitted"
 
         if (
             application.status
             not in ALLOWED_APPLICATION_STATUSES
         ):
+
             raise ValueError(
                 f"Invalid application status: "
                 f"{application.status}"
@@ -263,12 +283,14 @@ class JobApplicationService:
             )
 
         if existing_application:
+
             raise ValueError(
                 "You have already applied for this job."
             )
-        # ============================================================
+
+        # ========================================================
         # CALCULATE ATS + MATCH SCORE
-        # ============================================================
+        # ========================================================
 
         job = await self.session.get(
             Job,
@@ -301,8 +323,9 @@ class JobApplicationService:
                         application_experience=application.experience,
                     )
                 )
+
         # --------------------------------------------------------
-        # Create application
+        # CREATE APPLICATION
         # --------------------------------------------------------
 
         created_application = (
@@ -310,6 +333,18 @@ class JobApplicationService:
                 application
             )
         )
+
+        # --------------------------------------------------------
+        # UPDATE JOB APPLICANT COUNT
+        # --------------------------------------------------------
+
+        if job is not None:
+
+            job.applicants = (
+                (job.applicants or 0) + 1
+            )
+
+            await self.session.flush()
 
         return created_application
 
@@ -331,6 +366,7 @@ class JobApplicationService:
         # --------------------------------------------------------
 
         if new_status not in ALLOWED_APPLICATION_STATUSES:
+
             raise ValueError(
                 f"Invalid application status: {new_status}"
             )
@@ -347,6 +383,7 @@ class JobApplicationService:
         )
 
         if application is None:
+
             return None
 
         # --------------------------------------------------------
@@ -360,6 +397,7 @@ class JobApplicationService:
         # --------------------------------------------------------
 
         if old_status == new_status:
+
             return application
 
         # --------------------------------------------------------
@@ -409,6 +447,7 @@ class JobApplicationService:
             status is not None
             and status not in ALLOWED_APPLICATION_STATUSES
         ):
+
             raise ValueError(
                 f"Invalid application status: {status}"
             )
@@ -499,6 +538,7 @@ class JobApplicationService:
             application.resume_file
             and not application.resume_file.is_deleted
         ):
+
             resume_url = (
                 application.resume_file.public_url
             )
@@ -540,7 +580,9 @@ class JobApplicationService:
         Resolve the resume selected during application submission.
 
         Supported sources:
+
         - profile: Use the applicant's saved profile resume.
+
         - new_upload: Use the newly uploaded resume file.
         """
 
@@ -551,6 +593,7 @@ class JobApplicationService:
         if resume_source == "profile":
 
             if not applicant_user_id:
+
                 raise ValueError(
                     "Applicant user ID is required "
                     "for profile resume."
@@ -563,11 +606,13 @@ class JobApplicationService:
             )
 
             if profile is None:
+
                 raise ValueError(
                     "User profile not found."
                 )
 
             if not profile.resume_file_id:
+
                 raise ValueError(
                     "No resume found in user profile."
                 )
@@ -576,6 +621,7 @@ class JobApplicationService:
                 profile.resume_file is None
                 or profile.resume_file.is_deleted
             ):
+
                 raise ValueError(
                     "Profile resume file is unavailable."
                 )
@@ -592,6 +638,7 @@ class JobApplicationService:
         if resume_source == "new_upload":
 
             if not resume_file_id:
+
                 raise ValueError(
                     "Resume file is required "
                     "for new upload."

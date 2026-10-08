@@ -142,8 +142,10 @@ async def get_my_profile(
     # ---------------------------------------------------------
 
     return UserProfileResponse(
-        id=profile.id,
+       id=profile.id,
         user_id=profile.user_id,
+
+        name=current_user.name,
 
         dob=profile.dob,
         age=profile.age,
@@ -330,8 +332,8 @@ async def create_my_profile(
     # ---------------------------------------------------------
 
     return UserProfileResponse.model_validate(
-        service.build_profile_response(created_profile)
-    )
+    await service.build_profile_response(created_profile)
+)
 # ============================================================
 # UPDATE MY PROFILE
 # ============================================================
@@ -369,6 +371,9 @@ async def update_my_profile(
 
     if data.dob is not None:
         profile.dob = data.dob
+        
+    if data.name is not None:
+     current_user.name = data.name.strip()
 
     if data.age is not None:
         profile.age = data.age
@@ -498,8 +503,8 @@ async def update_my_profile(
     updated_profile = result.unique().scalar_one()
 
     return UserProfileResponse.model_validate(
-        service.build_profile_response(updated_profile)
-    )
+        await service.build_profile_response(updated_profile)
+)
 
 # ============================================================
 # DELETE MY PROFILE
