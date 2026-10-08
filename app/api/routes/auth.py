@@ -16,6 +16,8 @@ from app.schemas.auth import (
     LoginRequest,
     TokenResponse,
     PasswordResetRequest,
+    OTPSendRequest,
+    OTPVerifyRequest,
 )
 
 from app.schemas.user import (
@@ -325,7 +327,6 @@ async def google_login(
         "http://localhost:3000",
         "https://careercampus-bd89.onrender.com",
         "https://carrercompass-n2ms.onrender.com",
-        
     }
 
     if frontend_url not in allowed_frontends:
@@ -429,3 +430,103 @@ async def google_callback(
         ),
         status_code=status.HTTP_302_FOUND,
     )
+
+
+# ============================================================
+# SEND OTP
+# ============================================================
+
+@router.post(
+    "/otp/send",
+)
+async def send_otp(
+    data: OTPSendRequest,
+    session: AsyncSession = Depends(
+        get_db
+    ),
+):
+
+    service = AuthService(
+        session
+    )
+
+    try:
+
+        result = await service.send_otp(
+            data.phone
+        )
+
+        return {
+            "success": True,
+            "message": "OTP sent successfully.",
+            "data": result,
+        }
+
+    except ValueError as exc:
+
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        )
+
+    except Exception as exc:
+
+        print(
+            "OTP Send Error:",
+            exc
+        )
+
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to send OTP.",
+        )
+
+
+@router.post(
+    "/otp/verify",
+)
+async def verify_otp(
+    data: OTPVerifyRequest,
+    session: AsyncSession = Depends(
+        get_db
+    ),
+):
+
+    service = AuthService(
+        session
+    )
+
+    try:
+
+        result = await service.verify_otp(
+            phone=data.phone,
+            verification_id=data.verification_id,
+            otp=data.otp,
+        )
+
+        if not result.get("success"):
+
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=result.get(
+                    "message",
+                    "Invalid or expired OTP.",
+                ),
+            )
+
+        return result
+
+    except HTTPException:
+        raise
+
+    except Exception as exc:
+
+        print(
+            "OTP Verification Error:",
+            repr(exc),
+        )
+
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"OTP verification failed: {str(exc)}",
+        )

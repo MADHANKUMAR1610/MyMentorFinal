@@ -81,7 +81,13 @@ class Settings(BaseSettings):
     MAILERSEND_API_URL: str = (
         "https://api.mailersend.com/v1/email"
     )
-
+    #=====================================
+    # otp login
+    #====================================
+    MESSAGECENTRAL_CUSTOMER_ID: str
+    MESSAGECENTRAL_EMAIL: str
+    MESSAGECENTRAL_PASSWORD: str
+    MESSAGECENTRAL_COUNTRY: str = "91"
     # =========================================================
     # GEMINI AI
     # =========================================================

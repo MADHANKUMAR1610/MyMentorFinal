@@ -68,3 +68,43 @@ class MessageResponse(BaseModel):
     """
 
     message: str
+
+
+# ============================================================
+# OTP SEND
+# ============================================================
+
+class OTPSendRequest(BaseModel):
+    """
+    Send OTP to mobile number.
+    """
+
+    phone: str = Field(
+        ...,
+        min_length=10,
+        max_length=15,
+    )
+
+
+# ============================================================
+# OTP VERIFY
+# ============================================================
+
+class OTPVerifyRequest(BaseModel):
+    """
+    Verify OTP using Message Central verification ID.
+    """
+
+    phone: str = Field(
+        ...,
+        min_length=10,
+        max_length=15,
+    )
+
+    otp: str = Field(
+        ...,
+        min_length=4,
+        max_length=8,
+    )
+
+    verification_id: str
