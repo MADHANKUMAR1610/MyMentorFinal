@@ -191,13 +191,15 @@ class CompanyService:
 
         # ====================================================
         # STEP 2
-        # GOOGLE USER MUST EXIST
+        # REQUIRE AN AUTHENTICATED GOOGLE OR OTP USER
         # ====================================================
+        # get_current_user already validates the user's access token.
+        # Google users have google_id; OTP users have phone.
+        # Permit either authentication method.
 
-        if not current_user.google_id:
+        if not current_user.google_id and not current_user.phone:
             raise ValueError(
-                "Company onboarding requires "
-                "Google authentication."
+                "Company onboarding requires Google or mobile OTP authentication."
             )
 
         # ====================================================
@@ -250,10 +252,20 @@ class CompanyService:
             status="pending",
             verified=False,
 
-            # GOOGLE USER DATA
-            contact_person_name=current_user.name,
-            contact_email=current_user.email,
-            contact_phone=company_data.contact_phone,
+            # CONTACT DETAILS: Google defaults, or form values for OTP users.
+            contact_person_name=(
+                company_data.contact_person_name
+                or current_user.name
+            ),
+            contact_email=(
+                company_data.contact_email
+                or current_user.email
+                or admin_email
+            ),
+            contact_phone=(
+                company_data.contact_phone
+                or current_user.phone
+            ),
             contact_role=company_data.contact_role,
         )
 
@@ -273,10 +285,16 @@ class CompanyService:
         company_data.password
     ),
 
-    name=current_user.name,
+    name=(
+        company_data.contact_person_name
+        or current_user.name
+        or "Company Admin"
+    ),
 
-    # ✅ ADD THIS
-    phone=company_data.contact_phone,
+    phone=(
+        company_data.contact_phone
+        or current_user.phone
+    ),
 
     role="organization_admin",
 
