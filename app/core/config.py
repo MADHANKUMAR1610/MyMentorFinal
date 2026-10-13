@@ -36,11 +36,13 @@ class Settings(BaseSettings):
     # =========================================================
 
     CORS_ORIGINS: str = (
-        "http://localhost:3000,"
-        "https://careercampus-bd89.onrender.com,"
-        "https://carrercompass-n2ms.onrender.com,"
-        "https://my-mentor-organization.onrender.com"
-    )
+    "http://localhost:3000,"
+    "https://carrercompass.com,"
+    "https://www.carrercompass.com,"
+    "https://careercampus-bd89.onrender.com,"
+    "https://carrercompass-n2ms.onrender.com,"
+    "https://my-mentor-organization.onrender.com"
+)
 
     FRONTEND_LOCAL_URL: str = "http://localhost:3000"
 
