@@ -1,9 +1,14 @@
+
 from functools import lru_cache
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
+
+    # =========================================================
+    # APPLICATION
+    # =========================================================
 
     APP_NAME: str = "MyMentor API"
     APP_VERSION: str = "1.0.0"
@@ -32,27 +37,28 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 10080
 
     # =========================================================
-    # CORS
+    # CORS - FRONTEND DOMAINS
     # =========================================================
 
     CORS_ORIGINS: str = (
-    "http://localhost:3000,"
-    "https://carrercompass.com,"
-    "https://www.carrercompass.com,"
-    "https://careercampus-bd89.onrender.com,"
-    "https://carrercompass-n2ms.onrender.com,"
-    "https://my-mentor-organization.onrender.com"
-)
+        "http://localhost:3000,"
+        "http://localhost:5173,"
+        "https://carrercompass.com,"
+        "https://www.carrercompass.com,"
+        "https://careercampus-bd89.onrender.com,"
+        "https://carrercompass-n2ms.onrender.com,"
+        "https://my-mentor-organization.onrender.com"
+    )
 
     FRONTEND_LOCAL_URL: str = "http://localhost:3000"
 
     # =========================================================
-    # MAIN PRODUCTION FRONTENDS
-    #
-    # These are the two main frontend applications.
+    # PRODUCTION FRONTENDS
     # =========================================================
 
     FRONTEND_PRODUCTION_URLS: str = (
+        "https://carrercompass.com,"
+        "https://www.carrercompass.com,"
         "https://careercampus-bd89.onrender.com,"
         "https://carrercompass-n2ms.onrender.com"
     )
@@ -62,7 +68,8 @@ class Settings(BaseSettings):
     # =========================================================
 
     ORGANIZATION_PORTAL_URL: str = (
-        "https://my-mentor-organization.onrender.com"
+        "https://my-mentor-organization.onrender.com,"
+        "https://organization.carrercompass.com"
     )
 
     # =========================================================
@@ -83,13 +90,16 @@ class Settings(BaseSettings):
     MAILERSEND_API_URL: str = (
         "https://api.mailersend.com/v1/email"
     )
-    #=====================================
-    # otp login
-    #====================================
+
+    # =========================================================
+    # OTP LOGIN - MESSAGECENTRAL
+    # =========================================================
+
     MESSAGECENTRAL_CUSTOMER_ID: str
     MESSAGECENTRAL_EMAIL: str
     MESSAGECENTRAL_PASSWORD: str
     MESSAGECENTRAL_COUNTRY: str = "91"
+
     # =========================================================
     # GEMINI AI
     # =========================================================
@@ -105,6 +115,7 @@ class Settings(BaseSettings):
 
     # =========================================================
     # BACKEND PUBLIC URL
+    # Render default; override in VPS .env
     # =========================================================
 
     PUBLIC_BASE_URL: str = (
@@ -120,7 +131,13 @@ class Settings(BaseSettings):
     CLOUDINARY_CLOUD_NAME: str
     CLOUDINARY_API_KEY: str
     CLOUDINARY_API_SECRET: str
-    ADMIN_PASSWORD_ENCRYPTION_KEY: str 
+
+    # =========================================================
+    # ADMIN PASSWORD ENCRYPTION
+    # =========================================================
+
+    ADMIN_PASSWORD_ENCRYPTION_KEY: str
+
     # =========================================================
     # PYDANTIC SETTINGS
     # =========================================================
