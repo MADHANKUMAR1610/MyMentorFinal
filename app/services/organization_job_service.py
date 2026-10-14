@@ -123,6 +123,11 @@ class OrganizationJobService:
         # --------------------------------------------------------
 
         job_data = data.model_dump()
+        
+        # Use the authenticated organization admin as the default recruiter
+        # and hiring manager when IDs are not supplied.
+        job_data["recruiter_id"] = user_id
+        job_data["hiring_manager_id"] = user_id
 
         # --------------------------------------------------------
         # Company information
@@ -215,6 +220,8 @@ class OrganizationJobService:
         # --------------------------------------------------------
 
         job_data = data.model_dump()
+        job_data["recruiter_id"] = user_id
+        job_data["hiring_manager_id"] = user_id
 
         # --------------------------------------------------------
         # Company information

@@ -132,7 +132,7 @@ class OrganizationJobRepository:
 
         # Generate automatic JOB-1001, JOB-1002, JOB-1003...
         result = await self.db.execute(
-            text("SELECT nextval('job_code_sequence')")
+            text("SELECT nextval('public.job_code_seq')")
         )
 
         job_number = result.scalar_one()
