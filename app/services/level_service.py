@@ -491,10 +491,10 @@ class LevelService:
         progress.completed = True
 
         # --------------------------------------------------------
-        # 14. AWARD EXACTLY 100 XP
+        # 14. AWARD THE XP CONFIGURED FOR THIS LEVEL
         # --------------------------------------------------------
 
-        XP_REWARD = 100
+        XP_REWARD = max(0, int(level.xp or 0))
 
         user.xp = (
             user.xp or 0
