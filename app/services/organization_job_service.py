@@ -1,3 +1,4 @@
+import re
 import math
 from uuid import UUID
 
@@ -123,11 +124,6 @@ class OrganizationJobService:
         # --------------------------------------------------------
 
         job_data = data.model_dump()
-        
-        # Use the authenticated organization admin as the default recruiter
-        # and hiring manager when IDs are not supplied.
-        job_data["recruiter_id"] = user_id
-        job_data["hiring_manager_id"] = user_id
 
         # --------------------------------------------------------
         # Company information
@@ -220,8 +216,6 @@ class OrganizationJobService:
         # --------------------------------------------------------
 
         job_data = data.model_dump()
-        job_data["recruiter_id"] = user_id
-        job_data["hiring_manager_id"] = user_id
 
         # --------------------------------------------------------
         # Company information
@@ -884,17 +878,42 @@ class OrganizationJobService:
         # applications having match_score >= 70.
         # --------------------------------------------------------
 
-        matched_profiles = []
+        def normalize_skills(skills):
+            """Normalize skill values and split compound skill phrases."""
+            if not skills:
+                return {}
 
-        required_skills = [
-            skill.lower()
-            for skill in (
-                job.required_skills or []
-            )
-        ]
+            if isinstance(skills, str):
+                skills = [skills]
+
+            normalized = {}
+
+            for skill in skills:
+                if not isinstance(skill, str):
+                    continue
+
+                # Example: "Java or C# / .NET" -> Java, C#, .NET
+                parts = re.split(
+                    r"\s+or\s+|/|,|;",
+                    skill,
+                    flags=re.IGNORECASE,
+                )
+
+                for part in parts:
+                    display_name = part.strip()
+                    if not display_name:
+                        continue
+
+                    key = re.sub(r"\s+", " ", display_name.lower()).strip()
+                    normalized[key] = display_name
+
+            return normalized
+
+        matched_profiles = []
+        required_skill_map = normalize_skills(job.required_skills or [])
 
         for application in applications:
-
+            # Preserve the existing matched-profile threshold.
             if (
                 application.match_score is None
                 or application.match_score < 70
@@ -905,80 +924,56 @@ class OrganizationJobService:
             candidate_skills = []
 
             if application.applicant_user_id:
-
                 user = await self.db.get(
                     User,
                     application.applicant_user_id,
                 )
 
                 if user:
-
                     designation = user.designation
 
                     profile_result = await self.db.execute(
                         select(UserProfile).where(
-                            UserProfile.user_id
-                            == application.applicant_user_id
+                            UserProfile.user_id == application.applicant_user_id
                         )
                     )
-
-                    profile = (
-                        profile_result
-                        .scalar_one_or_none()
-                    )
+                    profile = profile_result.scalar_one_or_none()
 
                     if profile:
-                        candidate_skills = [
-                            skill.lower()
-                            for skill in (
-                                profile.skills or []
-                            )
-                        ]
+                        candidate_skills = profile.skills or []
 
-            relevant_skills = [
-                skill
-                for skill in candidate_skills
-                if skill in required_skills
-            ]
+            candidate_skill_map = normalize_skills(candidate_skills)
 
-            missing_skills = [
-                skill
-                for skill in required_skills
-                if skill not in candidate_skills
-            ]
+            relevant_keys = (
+                required_skill_map.keys() & candidate_skill_map.keys()
+            )
+            missing_keys = (
+                required_skill_map.keys() - candidate_skill_map.keys()
+            )
+
+            relevant_skills = sorted(
+                required_skill_map[key] for key in relevant_keys
+            )
+            missing_skills = sorted(
+                required_skill_map[key] for key in missing_keys
+            )
 
             matched_profiles.append(
                 {
-                    "candidate_id":
-                        application.applicant_user_id,
-
-                    "candidate_name":
-                        application.name,
-
-                    "designation":
-                        designation,
-
-                    "ats_score":
-                        application.ats_score,
-
-                    "match_score":
-                        application.match_score,
-
-                    "relevant_skills":
-                        relevant_skills,
-
-                    "missing_skills":
-                        missing_skills,
-
-                    "match_reason":
-                        (
-                            f"{len(relevant_skills)} relevant "
-                            f"required skill(s) matched"
-                        ),
+                    "candidate_id": application.applicant_user_id,
+                    "candidate_name": application.name,
+                    "designation": designation,
+                    "ats_score": application.ats_score,
+                    "match_score": application.match_score,
+                    "relevant_skills": relevant_skills,
+                    "missing_skills": missing_skills,
+                    "match_reason": (
+                        f"{len(relevant_skills)} relevant "
+                        f"required skill(s) matched"
+                    ),
                 }
             )
 
-        # --------------------------------------------------------
         # Interviews
         # --------------------------------------------------------
 
