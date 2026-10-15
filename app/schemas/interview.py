@@ -165,3 +165,12 @@ class InterviewResponse(BaseModel):
     created_at: datetime
 
     updated_at: datetime
+class InterviewerOptionResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    name: str
+    email: str | None = None
+    role: str
+    designation: str | None = None
+    department: str | None = None

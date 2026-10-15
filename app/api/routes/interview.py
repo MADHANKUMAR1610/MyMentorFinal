@@ -1,3 +1,4 @@
+
 from uuid import UUID
 
 from fastapi import (
@@ -10,18 +11,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import get_current_user
 from app.database.database import get_db
-
 from app.schemas.interview import (
     InterviewCreate,
     InterviewResponse,
     InterviewUpdate,
     InterviewStatusUpdate,
     InterviewFeedbackUpdate,
+    InterviewerOptionResponse,
 )
-
-from app.services.interview_service import (
-    InterviewService,
-)
+from app.services.interview_service import InterviewService
 
 
 router = APIRouter(
@@ -34,7 +32,6 @@ router = APIRouter(
 # CREATE / SCHEDULE INTERVIEW
 # ============================================================
 
-
 @router.post(
     "",
     response_model=InterviewResponse,
@@ -45,28 +42,27 @@ async def create_interview(
     current_user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-
     service = InterviewService(db)
 
     interview = await service.create_interview(
-    user_id=current_user.id,
-    application_id=data.application_id,
-    interviewer_id=data.interviewer_id,
-    title=data.title,
-    interview_type=data.interview_type,
-    scheduled_at=data.scheduled_at,
-    duration_minutes=data.duration_minutes,
-    mode=data.mode,
-    meeting_link=data.meeting_link,
-    location=data.location,
-    notes=data.notes,
-)
-
-    return InterviewResponse.model_validate(
-        interview
+        user_id=current_user.id,
+        application_id=data.application_id,
+        interviewer_id=data.interviewer_id,
+        title=data.title,
+        interview_type=data.interview_type,
+        scheduled_at=data.scheduled_at,
+        duration_minutes=data.duration_minutes,
+        mode=data.mode,
+        meeting_link=data.meeting_link,
+        location=data.location,
+        notes=data.notes,
     )
+
+    return InterviewResponse.model_validate(interview)
+
+
 # ============================================================
-# GET ALL INTERVIEWS
+# GET ALL ORGANIZATION INTERVIEWS
 # ============================================================
 
 @router.get(
@@ -74,23 +70,11 @@ async def create_interview(
     response_model=list[InterviewResponse],
 )
 async def get_interviews(
-    skip: int = Query(
-        default=0,
-        ge=0,
-    ),
-    limit: int = Query(
-        default=100,
-        ge=1,
-        le=100,
-    ),
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=100, ge=1, le=100),
     current_user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Get all interviews belonging to the
-    current user's organization.
-    """
-
     service = InterviewService(db)
 
     interviews = await service.get_interviews(
@@ -100,10 +84,33 @@ async def get_interviews(
     )
 
     return [
-        InterviewResponse.model_validate(
-            interview
-        )
+        InterviewResponse.model_validate(interview)
         for interview in interviews
+    ]
+
+
+# ============================================================
+# GET AVAILABLE INTERVIEWERS
+# IMPORTANT: Keep this before /{interview_id}
+# ============================================================
+
+@router.get(
+    "/available-interviewers",
+    response_model=list[InterviewerOptionResponse],
+)
+async def get_available_interviewers(
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    service = InterviewService(db)
+
+    interviewers = await service.get_available_interviewers(
+        user_id=current_user.id,
+    )
+
+    return [
+        InterviewerOptionResponse.model_validate(interviewer)
+        for interviewer in interviewers
     ]
 
 
@@ -120,11 +127,6 @@ async def get_interview(
     current_user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Get a specific interview belonging to
-    the current user's organization.
-    """
-
     service = InterviewService(db)
 
     interview = await service.get_interview(
@@ -132,9 +134,7 @@ async def get_interview(
         interview_id=interview_id,
     )
 
-    return InterviewResponse.model_validate(
-        interview
-    )
+    return InterviewResponse.model_validate(interview)
 
 
 # ============================================================
@@ -151,15 +151,9 @@ async def update_interview(
     current_user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Update interview details.
-    """
-
     service = InterviewService(db)
 
-    update_data = data.model_dump(
-        exclude_unset=True
-    )
+    update_data = data.model_dump(exclude_unset=True)
 
     interview = await service.update_interview(
         user_id=current_user.id,
@@ -167,13 +161,11 @@ async def update_interview(
         data=update_data,
     )
 
-    return InterviewResponse.model_validate(
-        interview
-    )
+    return InterviewResponse.model_validate(interview)
 
 
 # ============================================================
-# DELETE / CANCEL INTERVIEW
+# DELETE INTERVIEW
 # ============================================================
 
 @router.delete(
@@ -185,10 +177,6 @@ async def delete_interview(
     current_user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Delete an interview from the organization.
-    """
-
     service = InterviewService(db)
 
     await service.delete_interview(
@@ -213,17 +201,6 @@ async def update_interview_status(
     current_user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Update interview status.
-
-    Example:
-    scheduled
-    completed
-    cancelled
-    rescheduled
-    no_show
-    """
-
     service = InterviewService(db)
 
     interview = await service.update_interview_status(
@@ -232,10 +209,12 @@ async def update_interview_status(
         status=data.status,
     )
 
-    return InterviewResponse.model_validate(
-        interview
-    )
+    return InterviewResponse.model_validate(interview)
 
+
+# ============================================================
+# UPDATE INTERVIEW FEEDBACK
+# ============================================================
 
 @router.put(
     "/{interview_id}/feedback",
@@ -247,7 +226,6 @@ async def update_interview_feedback(
     current_user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-
     service = InterviewService(db)
 
     interview = await service.update_feedback(

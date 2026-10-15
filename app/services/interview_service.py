@@ -1,6 +1,7 @@
+
 from uuid import UUID
 
-from fastapi import HTTPException, status
+from fastapi import HTTPException, status as http_status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.repositories.organization_repository import (
@@ -14,14 +15,8 @@ from app.repositories.interview_repository import (
 class InterviewService:
 
     def __init__(self, db: AsyncSession):
-
-        self.organization_repository = (
-            OrganizationRepository(db)
-        )
-
-        self.interview_repository = (
-            InterviewRepository(db)
-        )
+        self.organization_repository = OrganizationRepository(db)
+        self.interview_repository = InterviewRepository(db)
 
     # ============================================================
     # CREATE INTERVIEW
@@ -42,11 +37,6 @@ class InterviewService:
         location: str | None,
         notes: str | None,
     ):
-
-        # --------------------------------------------------------
-        # 1. GET ORGANIZATION OF LOGGED-IN USER
-        # --------------------------------------------------------
-
         company = await (
             self.organization_repository
             .get_by_admin_user_id(user_id)
@@ -54,17 +44,12 @@ class InterviewService:
 
         if company is None:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
+                status_code=http_status.HTTP_404_NOT_FOUND,
                 detail="Organization not found for this user.",
             )
 
-        # --------------------------------------------------------
-        # 2. CHECK APPLICATION EXISTS
-        # --------------------------------------------------------
-
         application = await (
-            self.interview_repository
-            .get_application_by_id(
+            self.interview_repository.get_application_by_id(
                 application_id=application_id,
                 company_id=company.id,
             )
@@ -72,58 +57,66 @@ class InterviewService:
 
         if application is None:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
+                status_code=http_status.HTTP_404_NOT_FOUND,
                 detail="Job application not found.",
             )
 
-        # --------------------------------------------------------
-        # 3. CHECK INTERVIEWER EXISTS
-        # --------------------------------------------------------
-
         interviewer = await (
-            self.interview_repository
-            .get_user_by_id(
+            self.interview_repository.get_user_by_id(
                 interviewer_id
             )
         )
 
         if interviewer is None:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
+                status_code=http_status.HTTP_404_NOT_FOUND,
                 detail="Interviewer not found.",
             )
 
-        # --------------------------------------------------------
-        # 4. CHECK INTERVIEWER BELONGS TO ORGANIZATION
-        # --------------------------------------------------------
+        if not interviewer.is_active:
+            raise HTTPException(
+                status_code=http_status.HTTP_400_BAD_REQUEST,
+                detail="This interviewer account is inactive.",
+            )
+
+        
+        allowed_roles = {
+            "interviewer",
+            "hiring_manager",
+        }
+
+        if interviewer.role not in allowed_roles:
+            raise HTTPException(
+                status_code=http_status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    "Selected user is not authorized "
+                    "to conduct interviews."
+                ),
+            )
+
 
         if interviewer.company_id != company.id:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Interviewer does not belong to this organization.",
+                status_code=http_status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    "Interviewer does not belong "
+                    "to this organization."
+                ),
             )
 
-        # --------------------------------------------------------
-        # 5. CREATE INTERVIEW
-        # --------------------------------------------------------
-
-        interview = await (
-            self.interview_repository.create(
-                company_id=company.id,
-                application_id=application_id,
-                interviewer_id=interviewer_id,
-                title=title,
-                interview_type=interview_type,
-                scheduled_at=scheduled_at,
-                duration_minutes=duration_minutes,
-                mode=mode,
-                meeting_link=meeting_link,
-                location=location,
-                notes=notes,
-            )
+        return await self.interview_repository.create(
+            company_id=company.id,
+            application_id=application_id,
+            interviewer_id=interviewer_id,
+            title=title,
+            interview_type=interview_type,
+            scheduled_at=scheduled_at,
+            duration_minutes=duration_minutes,
+            mode=mode,
+            meeting_link=meeting_link,
+            location=location,
+            notes=notes,
         )
-
-        return interview
 
     # ============================================================
     # GET ALL ORGANIZATION INTERVIEWS
@@ -136,11 +129,6 @@ class InterviewService:
         skip: int = 0,
         limit: int = 100,
     ):
-
-        # --------------------------------------------------------
-        # GET ORGANIZATION OF LOGGED-IN USER
-        # --------------------------------------------------------
-
         company = await (
             self.organization_repository
             .get_by_admin_user_id(user_id)
@@ -148,25 +136,18 @@ class InterviewService:
 
         if company is None:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
+                status_code=http_status.HTTP_404_NOT_FOUND,
                 detail="Organization not found for this user.",
             )
 
-        # --------------------------------------------------------
-        # GET ALL INTERVIEWS
-        # --------------------------------------------------------
-
-        interviews = await (
-            self.interview_repository
-            .get_by_company_id(
+        return await (
+            self.interview_repository.get_by_company_id(
                 company_id=company.id,
                 skip=skip,
                 limit=limit,
             )
         )
 
-        return interviews
-    
     # ============================================================
     # GET SINGLE ORGANIZATION INTERVIEW
     # ============================================================
@@ -176,11 +157,6 @@ class InterviewService:
         user_id: UUID,
         interview_id: UUID,
     ):
-
-        # --------------------------------------------------------
-        # GET ORGANIZATION OF LOGGED-IN USER
-        # --------------------------------------------------------
-
         company = await (
             self.organization_repository
             .get_by_admin_user_id(user_id)
@@ -188,17 +164,12 @@ class InterviewService:
 
         if company is None:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
+                status_code=http_status.HTTP_404_NOT_FOUND,
                 detail="Organization not found for this user.",
             )
 
-        # --------------------------------------------------------
-        # GET INTERVIEW
-        # --------------------------------------------------------
-
         interview = await (
-            self.interview_repository
-            .get_by_id(
+            self.interview_repository.get_by_id(
                 interview_id=interview_id,
                 company_id=company.id,
             )
@@ -206,11 +177,12 @@ class InterviewService:
 
         if interview is None:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
+                status_code=http_status.HTTP_404_NOT_FOUND,
                 detail="Interview not found.",
             )
 
         return interview
+
     # ============================================================
     # UPDATE ORGANIZATION INTERVIEW
     # ============================================================
@@ -221,11 +193,6 @@ class InterviewService:
         interview_id: UUID,
         data: dict,
     ):
-
-        # --------------------------------------------------------
-        # 1. GET ORGANIZATION
-        # --------------------------------------------------------
-
         company = await (
             self.organization_repository
             .get_by_admin_user_id(user_id)
@@ -233,17 +200,12 @@ class InterviewService:
 
         if company is None:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
+                status_code=http_status.HTTP_404_NOT_FOUND,
                 detail="Organization not found for this user.",
             )
 
-        # --------------------------------------------------------
-        # 2. GET INTERVIEW
-        # --------------------------------------------------------
-
         interview = await (
-            self.interview_repository
-            .get_by_id(
+            self.interview_repository.get_by_id(
                 interview_id=interview_id,
                 company_id=company.id,
             )
@@ -251,13 +213,9 @@ class InterviewService:
 
         if interview is None:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
+                status_code=http_status.HTTP_404_NOT_FOUND,
                 detail="Interview not found.",
             )
-
-        # --------------------------------------------------------
-        # 3. UPDATE ALLOWED FIELDS
-        # --------------------------------------------------------
 
         allowed_fields = {
             "title",
@@ -271,17 +229,11 @@ class InterviewService:
         }
 
         for field, value in data.items():
-
             if field in allowed_fields and value is not None:
                 setattr(interview, field, value)
 
-        # --------------------------------------------------------
-        # 4. SAVE
-        # --------------------------------------------------------
+        return await self.interview_repository.update(interview)
 
-        return await self.interview_repository.update(
-            interview
-        )
     # ============================================================
     # UPDATE INTERVIEW STATUS
     # ============================================================
@@ -292,11 +244,6 @@ class InterviewService:
         interview_id: UUID,
         status: str,
     ):
-
-        # --------------------------------------------------------
-        # 1. GET ORGANIZATION
-        # --------------------------------------------------------
-
         company = await (
             self.organization_repository
             .get_by_admin_user_id(user_id)
@@ -304,17 +251,12 @@ class InterviewService:
 
         if company is None:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
+                status_code=http_status.HTTP_404_NOT_FOUND,
                 detail="Organization not found for this user.",
             )
 
-        # --------------------------------------------------------
-        # 2. GET INTERVIEW
-        # --------------------------------------------------------
-
         interview = await (
-            self.interview_repository
-            .get_by_id(
+            self.interview_repository.get_by_id(
                 interview_id=interview_id,
                 company_id=company.id,
             )
@@ -322,13 +264,9 @@ class InterviewService:
 
         if interview is None:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
+                status_code=http_status.HTTP_404_NOT_FOUND,
                 detail="Interview not found.",
             )
-
-        # --------------------------------------------------------
-        # 3. VALIDATE STATUS
-        # --------------------------------------------------------
 
         allowed_statuses = {
             "scheduled",
@@ -340,7 +278,7 @@ class InterviewService:
 
         if status not in allowed_statuses:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
+                status_code=http_status.HTTP_400_BAD_REQUEST,
                 detail=(
                     "Invalid interview status. "
                     "Allowed values: scheduled, completed, "
@@ -348,21 +286,10 @@ class InterviewService:
                 ),
             )
 
-        # --------------------------------------------------------
-        # 4. UPDATE STATUS
-        # --------------------------------------------------------
-
         interview.status = status
 
-        # --------------------------------------------------------
-        # 5. SAVE
-        # --------------------------------------------------------
+        return await self.interview_repository.update(interview)
 
-        return await (
-            self.interview_repository.update(
-                interview
-            )
-        )
     # ============================================================
     # UPDATE INTERVIEW FEEDBACK
     # ============================================================
@@ -377,10 +304,6 @@ class InterviewService:
         recommendation: str | None = None,
         notes: str | None = None,
     ):
-        # --------------------------------------------------------
-        # Find organization of logged-in user
-        # --------------------------------------------------------
-
         company = await (
             self.organization_repository
             .get_by_admin_user_id(user_id)
@@ -388,17 +311,12 @@ class InterviewService:
 
         if company is None:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
+                status_code=http_status.HTTP_404_NOT_FOUND,
                 detail="Organization not found for this user.",
             )
 
-        # --------------------------------------------------------
-        # Get interview
-        # --------------------------------------------------------
-
         interview = await (
-            self.interview_repository
-            .get_by_id(
+            self.interview_repository.get_by_id(
                 interview_id=interview_id,
                 company_id=company.id,
             )
@@ -406,13 +324,9 @@ class InterviewService:
 
         if interview is None:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
+                status_code=http_status.HTTP_404_NOT_FOUND,
                 detail="Interview not found.",
             )
-
-        # --------------------------------------------------------
-        # Update only supplied fields
-        # --------------------------------------------------------
 
         if rating is not None:
             interview.rating = rating
@@ -426,12 +340,31 @@ class InterviewService:
         if notes is not None:
             interview.notes = notes
 
-        # --------------------------------------------------------
-        # Save changes
-        # --------------------------------------------------------
+        return await self.interview_repository.update(interview)
 
-        return await self.interview_repository.update(
-            interview
+    # ============================================================
+    # GET AVAILABLE INTERVIEWERS
+    # ============================================================
+
+    async def get_available_interviewers(
+        self,
+        user_id: UUID,
+    ):
+        company = await (
+            self.organization_repository
+            .get_by_admin_user_id(user_id)
+        )
+
+        if company is None:
+            raise HTTPException(
+                status_code=http_status.HTTP_404_NOT_FOUND,
+                detail="Organization not found for this user.",
+            )
+
+        return await (
+            self.interview_repository.get_available_interviewers(
+                company_id=company.id,
+            )
         )
 
     # ============================================================
@@ -443,10 +376,6 @@ class InterviewService:
         user_id: UUID,
         interview_id: UUID,
     ):
-        # --------------------------------------------------------
-        # Find organization of logged-in user
-        # --------------------------------------------------------
-
         company = await (
             self.organization_repository
             .get_by_admin_user_id(user_id)
@@ -454,17 +383,12 @@ class InterviewService:
 
         if company is None:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
+                status_code=http_status.HTTP_404_NOT_FOUND,
                 detail="Organization not found for this user.",
             )
 
-        # --------------------------------------------------------
-        # Get interview belonging to this organization
-        # --------------------------------------------------------
-
         interview = await (
-            self.interview_repository
-            .get_by_id(
+            self.interview_repository.get_by_id(
                 interview_id=interview_id,
                 company_id=company.id,
             )
@@ -472,16 +396,10 @@ class InterviewService:
 
         if interview is None:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
+                status_code=http_status.HTTP_404_NOT_FOUND,
                 detail="Interview not found.",
             )
 
-        # --------------------------------------------------------
-        # Delete interview
-        # --------------------------------------------------------
-
-        await self.interview_repository.delete(
-            interview
-        )
+        await self.interview_repository.delete(interview)
 
         return None

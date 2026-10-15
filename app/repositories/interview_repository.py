@@ -1,3 +1,4 @@
+
 from datetime import datetime
 from uuid import UUID
 
@@ -23,14 +24,9 @@ class InterviewRepository:
         self,
         user_id: UUID,
     ) -> User | None:
-
         result = await self.db.execute(
-            select(User)
-            .where(
-                User.id == user_id
-            )
+            select(User).where(User.id == user_id)
         )
-
         return result.scalar_one_or_none()
 
     # ============================================================
@@ -42,19 +38,14 @@ class InterviewRepository:
         application_id: UUID,
         company_id: UUID,
     ) -> JobApplication | None:
-
         result = await self.db.execute(
             select(JobApplication)
-            .join(
-                Job,
-                Job.id == JobApplication.job_id,
-            )
+            .join(Job, Job.id == JobApplication.job_id)
             .where(
                 JobApplication.id == application_id,
                 Job.company_id == company_id,
             )
         )
-
         return result.scalar_one_or_none()
 
     # ============================================================
@@ -76,7 +67,6 @@ class InterviewRepository:
         location: str | None,
         notes: str | None,
     ) -> Interview:
-
         interview = Interview(
             company_id=company_id,
             application_id=application_id,
@@ -93,11 +83,11 @@ class InterviewRepository:
         )
 
         self.db.add(interview)
-
         await self.db.commit()
         await self.db.refresh(interview)
 
         return interview
+
     # ============================================================
     # GET ALL COMPANY INTERVIEWS
     # ============================================================
@@ -109,20 +99,16 @@ class InterviewRepository:
         skip: int = 0,
         limit: int = 100,
     ) -> list[Interview]:
-
         result = await self.db.execute(
             select(Interview)
-            .where(
-                Interview.company_id == company_id
-            )
-            .order_by(
-                Interview.scheduled_at.desc()
-            )
+            .where(Interview.company_id == company_id)
+            .order_by(Interview.scheduled_at.desc())
             .offset(skip)
             .limit(limit)
         )
 
         return list(result.scalars().all())
+
     # ============================================================
     # GET INTERVIEW BY ID
     # ============================================================
@@ -132,10 +118,8 @@ class InterviewRepository:
         interview_id: UUID,
         company_id: UUID,
     ) -> Interview | None:
-
         result = await self.db.execute(
-            select(Interview)
-            .where(
+            select(Interview).where(
                 Interview.id == interview_id,
                 Interview.company_id == company_id,
             )
@@ -143,11 +127,14 @@ class InterviewRepository:
 
         return result.scalar_one_or_none()
 
+    # ============================================================
+    # UPDATE INTERVIEW
+    # ============================================================
+
     async def update(
         self,
         interview: Interview,
     ) -> Interview:
-
         await self.db.commit()
         await self.db.refresh(interview)
 
@@ -161,20 +148,51 @@ class InterviewRepository:
         self,
         interview: Interview,
     ) -> Interview:
-
         await self.db.commit()
         await self.db.refresh(interview)
 
         return interview
+
     # ============================================================
-# DELETE INTERVIEW
-# ============================================================
+    # DELETE INTERVIEW
+    # ============================================================
 
     async def delete(
         self,
         interview: Interview,
     ) -> None:
-
         await self.db.delete(interview)
-
         await self.db.commit()
+
+    # ============================================================
+    # GET AVAILABLE INTERVIEWERS
+    # ============================================================
+
+    
+    
+    
+   
+    # ============================================================
+    # GET AVAILABLE INTERVIEWERS
+    # ============================================================
+
+    async def get_available_interviewers(
+        self,
+        company_id: UUID,
+    ) -> list[User]:
+        """Get active interview-capable members of this company."""
+
+        result = await self.db.execute(
+            select(User)
+            .where(
+                User.company_id == company_id,
+                User.is_active.is_(True),
+                User.role.in_([
+                    "interviewer",
+                    "hiring_manager",
+                ]),
+            )
+            .order_by(User.name.asc())
+        )
+
+        return list(result.scalars().all())
