@@ -18,7 +18,6 @@ from app.services.mentor_application_service import (
     MentorApplicationService,
 )
 
-
 router = APIRouter(
     prefix="/mentor-applications",
     tags=["Mentor Applications"],
@@ -26,7 +25,7 @@ router = APIRouter(
 
 
 # ============================================================
-# CREATE APPLICATION + MENTOR IMMEDIATELY
+# CREATE APPLICATION + MENTOR
 # ============================================================
 
 @router.post(
@@ -50,7 +49,7 @@ async def create_mentor_application(
         )
 
     try:
-        # Create the application first.
+        # Create the application.
         application = MentorApplication(
             name=data.name,
             email=data.email,
@@ -73,10 +72,36 @@ async def create_mentor_application(
 
         created_application = await service.create_application(application)
 
-        # Ensure the application has its database-generated UUID.
+        # Ensure the application UUID is available.
         await session.flush()
 
-        # Create the corresponding mentor using the SAME UUID.
+        # Avoid duplicate mentor records for this UUID.
+        existing_mentor = await session.get(
+            Mentor,
+            created_application.id,
+        )
+
+        if existing_mentor is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="A mentor record already exists for this application.",
+            )
+
+        # Create the mentor using the same UUID as the application.
+        raw_skills = data.skills or ""
+        if isinstance(raw_skills, list):
+            mentor_skills = [
+                skill.strip()
+                for skill in raw_skills
+                if skill and skill.strip()
+            ]
+        else:
+            mentor_skills = [
+                skill.strip()
+                for skill in raw_skills.split(",")
+                if skill.strip()
+            ]
+
         mentor = Mentor(
             id=created_application.id,
             name=data.name,
@@ -85,21 +110,18 @@ async def create_mentor_application(
             industry=data.industry,
             experience_years=data.experience_years,
             languages=data.languages,
-            skills=[
-                skill.strip()
-                for skill in (data.skills or "").split(",")
-                if skill.strip()
-            ],
+            skills=mentor_skills,
             price=data.price_per_session,
             availability=data.availability,
             status="approved",
             verified=False,
+            rating=0,
         )
 
         session.add(mentor)
         await session.flush()
 
-        # Save both records in one transaction.
+        # Commit both records together.
         await session.commit()
         await session.refresh(created_application)
 
@@ -209,24 +231,38 @@ async def update_mentor_application(
 
     updates = data.model_dump(exclude_unset=True)
 
-    for field, value in updates.items():
-        if field in {
-            "phone",
-            "role",
-            "company",
-            "industry",
-            "experience_years",
-            "skills",
-            "languages",
-            "linkedin",
-            "bio",
-            "motivation",
-        } and value is not None:
-            setattr(application, field, value)
+    allowed_fields = {
+        "phone",
+        "role",
+        "company",
+        "industry",
+        "experience_years",
+        "skills",
+        "languages",
+        "linkedin",
+        "bio",
+        "motivation",
+    }
 
-    updated_application = await service.update_application(application)
+    try:
+        for field, value in updates.items():
+            if field in allowed_fields and value is not None:
+                setattr(application, field, value)
 
-    return MentorApplicationResponse.model_validate(updated_application)
+        updated_application = await service.update_application(
+            application
+        )
+
+        await session.commit()
+        await session.refresh(updated_application)
+
+        return MentorApplicationResponse.model_validate(
+            updated_application
+        )
+
+    except Exception:
+        await session.rollback()
+        raise
 
 
 # ============================================================
@@ -252,6 +288,11 @@ async def delete_mentor_application(
             detail="Mentor application not found.",
         )
 
-    await service.delete_application(application)
+    try:
+        await service.delete_application(application)
+        await session.commit()
+    except Exception:
+        await session.rollback()
+        raise
 
     return None

@@ -47,16 +47,13 @@ async def create_booking(
             detail="Mentor not found.",
         )
 
-    # No mentor approval-status check.
-    # The mentor must still exist in the mentors table.
-
     booking = Booking(
         mentor_id=mentor.id,
         user_id=current_user.id,
         scheduled_at=data.scheduled_at,
         topic=data.topic,
         mode=data.mode,
-        meeting_link=None,
+        meeting_link=data.meeting_link,
         status="upcoming",
         report=None,
     )
@@ -174,14 +171,16 @@ async def update_booking(
             detail="You do not have access to this booking.",
         )
 
-    # No booking-status restriction for updates.
     updates = data.model_dump(exclude_unset=True)
 
     for field, value in updates.items():
-        if value is not None:
-            setattr(booking, field, value)
+        setattr(booking, field, value)
 
-    return await service.update_booking(booking)
+    try:
+        return await service.update_booking(booking)
+    except Exception:
+        await session.rollback()
+        raise
 
 
 # ============================================================
@@ -212,7 +211,10 @@ async def delete_booking(
             detail="You do not have access to this booking.",
         )
 
-    # No booking-status restriction for deletion.
-    await service.delete_booking(booking)
+    try:
+        await service.delete_booking(booking)
+    except Exception:
+        await session.rollback()
+        raise
 
     return None

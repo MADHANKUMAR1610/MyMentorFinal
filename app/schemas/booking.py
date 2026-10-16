@@ -3,7 +3,12 @@ from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    field_validator,
+)
 
 
 BookingMode = Literal["Google Meet", "Zoom", "Phone"]
@@ -14,6 +19,7 @@ class BookingCreate(BaseModel):
     scheduled_at: datetime
     topic: str = Field(min_length=1, max_length=500)
     mode: BookingMode = "Google Meet"
+    meeting_link: str | None = None
 
     @field_validator("scheduled_at")
     @classmethod
@@ -38,11 +44,83 @@ class BookingCreate(BaseModel):
             raise ValueError("Topic cannot be empty")
         return value
 
+    @field_validator("meeting_link")
+    @classmethod
+    def validate_meeting_link(
+        cls,
+        value: str | None,
+    ) -> str | None:
+        if value is not None:
+            value = value.strip()
+
+            if not value:
+                return None
+
+            if not value.startswith(("https://", "http://")):
+                raise ValueError(
+                    "Meeting link must start with http:// or https://"
+                )
+
+        return value
+
 
 class BookingUpdate(BaseModel):
     scheduled_at: datetime | None = None
     topic: str | None = Field(default=None, max_length=500)
     mode: BookingMode | None = None
+    meeting_link: str | None = None
+
+    @field_validator("scheduled_at")
+    @classmethod
+    def validate_scheduled_at(
+        cls,
+        value: datetime | None,
+    ) -> datetime | None:
+        if value is not None:
+            if value.tzinfo is None or value.utcoffset() is None:
+                raise ValueError(
+                    "scheduled_at must include a timezone"
+                )
+
+            if value <= datetime.now(value.tzinfo):
+                raise ValueError(
+                    "Booking must be scheduled in the future"
+                )
+
+        return value
+
+    @field_validator("topic")
+    @classmethod
+    def validate_topic(
+        cls,
+        value: str | None,
+    ) -> str | None:
+        if value is not None:
+            value = value.strip()
+
+            if not value:
+                raise ValueError("Topic cannot be empty")
+
+        return value
+
+    @field_validator("meeting_link")
+    @classmethod
+    def validate_meeting_link(
+        cls,
+        value: str | None,
+    ) -> str | None:
+        if value is not None:
+            value = value.strip()
+
+            if not value:
+                return None
+
+            if not value.startswith(("https://", "http://")):
+                raise ValueError(
+                    "Meeting link must start with http:// or https://"
+                )
+
+        return value
 
 
 class BookingResponse(BaseModel):
