@@ -1,4 +1,4 @@
-from datetime import datetime
+
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -37,14 +37,9 @@ async def create_booking(
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
 ):
-    """
-    Create a booking for the currently authenticated user.
-    """
+    """Create a booking for the authenticated user."""
 
-    mentor = await session.get(
-        Mentor,
-        data.mentor_id,
-    )
+    mentor = await session.get(Mentor, data.mentor_id)
 
     if mentor is None:
         raise HTTPException(
@@ -52,32 +47,27 @@ async def create_booking(
             detail="Mentor not found.",
         )
 
-    if mentor.status != "approved":
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="This mentor is not available for booking.",
-        )
+    # No mentor approval-status check.
+    # The mentor must still exist in the mentors table.
 
     booking = Booking(
-        mentor_id=data.mentor_id,
+        mentor_id=mentor.id,
         user_id=current_user.id,
         scheduled_at=data.scheduled_at,
         topic=data.topic,
         mode=data.mode,
-        meeting_link=data.meeting_link,
-        status=data.status,
-        report=data.report,
+        meeting_link=None,
+        status="upcoming",
+        report=None,
     )
 
     service = BookingService(session)
 
-    created_booking = await service.create_booking(
-        booking
-    )
-
-    return BookingResponse.model_validate(
-        created_booking
-    )
+    try:
+        return await service.create_booking(booking)
+    except Exception:
+        await session.rollback()
+        raise
 
 
 # ============================================================
@@ -89,34 +79,18 @@ async def create_booking(
     response_model=list[BookingResponse],
 )
 async def get_my_bookings(
-    skip: int = Query(
-        default=0,
-        ge=0,
-    ),
-    limit: int = Query(
-        default=100,
-        ge=1,
-        le=100,
-    ),
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=100, ge=1, le=100),
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
 ):
-    """
-    Get bookings belonging to the current user.
-    """
-
     service = BookingService(session)
 
-    bookings = await service.get_by_user_id(
+    return await service.get_by_user_id(
         current_user.id,
         skip=skip,
         limit=limit,
     )
-
-    return [
-        BookingResponse.model_validate(booking)
-        for booking in bookings
-    ]
 
 
 # ============================================================
@@ -128,29 +102,16 @@ async def get_my_bookings(
     response_model=list[BookingResponse],
 )
 async def get_my_upcoming_bookings(
-    limit: int = Query(
-        default=100,
-        ge=1,
-        le=100,
-    ),
+    limit: int = Query(default=100, ge=1, le=100),
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
 ):
-    """
-    Get upcoming bookings for the current user.
-    """
-
     service = BookingService(session)
 
-    bookings = await service.get_upcoming_for_user(
+    return await service.get_upcoming_for_user(
         current_user.id,
         limit=limit,
     )
-
-    return [
-        BookingResponse.model_validate(booking)
-        for booking in bookings
-    ]
 
 
 # ============================================================
@@ -166,15 +127,8 @@ async def get_booking_by_id(
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
 ):
-    """
-    Get a booking by ID.
-    """
-
     service = BookingService(session)
-
-    booking = await service.get_by_id(
-        booking_id
-    )
+    booking = await service.get_by_id(booking_id)
 
     if booking is None:
         raise HTTPException(
@@ -188,9 +142,7 @@ async def get_booking_by_id(
             detail="You do not have access to this booking.",
         )
 
-    return BookingResponse.model_validate(
-        booking
-    )
+    return booking
 
 
 # ============================================================
@@ -207,15 +159,8 @@ async def update_booking(
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
 ):
-    """
-    Update a booking belonging to the current user.
-    """
-
     service = BookingService(session)
-
-    booking = await service.get_by_id(
-        booking_id
-    )
+    booking = await service.get_by_id(booking_id)
 
     if booking is None:
         raise HTTPException(
@@ -229,31 +174,14 @@ async def update_booking(
             detail="You do not have access to this booking.",
         )
 
-    if data.scheduled_at is not None:
-        booking.scheduled_at = data.scheduled_at
+    # No booking-status restriction for updates.
+    updates = data.model_dump(exclude_unset=True)
 
-    if data.topic is not None:
-        booking.topic = data.topic
+    for field, value in updates.items():
+        if value is not None:
+            setattr(booking, field, value)
 
-    if data.mode is not None:
-        booking.mode = data.mode
-
-    if data.meeting_link is not None:
-        booking.meeting_link = data.meeting_link
-
-    if data.status is not None:
-        booking.status = data.status
-
-    if data.report is not None:
-        booking.report = data.report
-
-    updated_booking = await service.update_booking(
-        booking
-    )
-
-    return BookingResponse.model_validate(
-        updated_booking
-    )
+    return await service.update_booking(booking)
 
 
 # ============================================================
@@ -269,15 +197,8 @@ async def delete_booking(
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
 ):
-    """
-    Delete a booking belonging to the current user.
-    """
-
     service = BookingService(session)
-
-    booking = await service.get_by_id(
-        booking_id
-    )
+    booking = await service.get_by_id(booking_id)
 
     if booking is None:
         raise HTTPException(
@@ -291,6 +212,7 @@ async def delete_booking(
             detail="You do not have access to this booking.",
         )
 
+    # No booking-status restriction for deletion.
     await service.delete_booking(booking)
 
     return None

@@ -89,10 +89,14 @@ class BookingService:
             limit=limit,
         )
 
+    
     async def create_booking(
         self,
         booking: Booking,
     ) -> Booking:
+        booking.status = "upcoming"
+        booking.meeting_link = None
+        booking.report = None
 
         return await self.repository.create(booking)
 

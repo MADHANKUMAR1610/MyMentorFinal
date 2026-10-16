@@ -1,3 +1,4 @@
+
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -5,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import get_current_user
 from app.database.database import get_db
+from app.models.mentor import Mentor
 from app.models.mentor_application import MentorApplication
 from app.models.user import User
 from app.schemas.mentor_application import (
@@ -24,7 +26,7 @@ router = APIRouter(
 
 
 # ============================================================
-# CREATE MENTOR APPLICATION
+# CREATE APPLICATION + MENTOR IMMEDIATELY
 # ============================================================
 
 @router.post(
@@ -37,15 +39,9 @@ async def create_mentor_application(
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
 ):
-    """
-    Submit a mentor application.
-    """
-
     service = MentorApplicationService(session)
 
-    existing_application = await service.get_by_email(
-        data.email
-    )
+    existing_application = await service.get_by_email(data.email)
 
     if existing_application is not None:
         raise HTTPException(
@@ -53,38 +49,71 @@ async def create_mentor_application(
             detail="A mentor application already exists for this email.",
         )
 
-    
-    application = MentorApplication(
-    name=data.name,
-    email=data.email,
-    phone=data.phone,
-    role=data.role,
-    company=data.company,
-    industry=data.industry,
-    experience_years=data.experience_years,
-    skills=data.skills,
-    languages=data.languages,
-    linkedin=data.linkedin,
-    bio=data.bio,
-    motivation=data.motivation,
-    price_per_session=data.price_per_session,
-    availability=data.availability,
-    start_time=data.start_time,
-    end_time=data.end_time,
-    status="pending",
-)
+    try:
+        # Create the application first.
+        application = MentorApplication(
+            name=data.name,
+            email=data.email,
+            phone=data.phone,
+            role=data.role,
+            company=data.company,
+            industry=data.industry,
+            experience_years=data.experience_years,
+            skills=data.skills,
+            languages=data.languages,
+            linkedin=data.linkedin,
+            bio=data.bio,
+            motivation=data.motivation,
+            price_per_session=data.price_per_session,
+            availability=data.availability,
+            start_time=data.start_time,
+            end_time=data.end_time,
+            status="approved",
+        )
 
-    created_application = await service.create_application(
-        application
-    )
+        created_application = await service.create_application(application)
 
-    return MentorApplicationResponse.model_validate(
-        created_application
-    )
+        # Ensure the application has its database-generated UUID.
+        await session.flush()
+
+        # Create the corresponding mentor using the SAME UUID.
+        mentor = Mentor(
+            id=created_application.id,
+            name=data.name,
+            role=data.role,
+            company=data.company,
+            industry=data.industry,
+            experience_years=data.experience_years,
+            languages=data.languages,
+            skills=[
+                skill.strip()
+                for skill in (data.skills or "").split(",")
+                if skill.strip()
+            ],
+            price=data.price_per_session,
+            availability=data.availability,
+            status="approved",
+            verified=False,
+        )
+
+        session.add(mentor)
+        await session.flush()
+
+        # Save both records in one transaction.
+        await session.commit()
+        await session.refresh(created_application)
+
+        return MentorApplicationResponse.model_validate(
+            created_application
+        )
+
+    except Exception:
+        await session.rollback()
+        raise
 
 
 # ============================================================
-# GET MENTOR APPLICATION BY ID
+# GET APPLICATION BY ID
 # ============================================================
 
 @router.get(
@@ -96,15 +125,9 @@ async def get_mentor_application_by_id(
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
 ):
-    """
-    Get a mentor application by UUID.
-    """
-
     service = MentorApplicationService(session)
 
-    application = await service.get_by_id(
-        application_id
-    )
+    application = await service.get_by_id(application_id)
 
     if application is None:
         raise HTTPException(
@@ -112,9 +135,7 @@ async def get_mentor_application_by_id(
             detail="Mentor application not found.",
         )
 
-    return MentorApplicationResponse.model_validate(
-        application
-    )
+    return MentorApplicationResponse.model_validate(application)
 
 
 # ============================================================
@@ -131,22 +152,11 @@ async def get_mentor_applications(
         alias="status",
     ),
     industry: str | None = Query(default=None),
-    skip: int = Query(
-        default=0,
-        ge=0,
-    ),
-    limit: int = Query(
-        default=100,
-        ge=1,
-        le=100,
-    ),
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=100, ge=1, le=100),
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
 ):
-    """
-    Get mentor applications with optional filters.
-    """
-
     service = MentorApplicationService(session)
 
     if application_status is not None:
@@ -155,14 +165,12 @@ async def get_mentor_applications(
             skip=skip,
             limit=limit,
         )
-
     elif industry is not None:
         applications = await service.get_by_industry(
             industry,
             skip=skip,
             limit=limit,
         )
-
     else:
         applications = await service.repository.get_all(
             skip=skip,
@@ -170,15 +178,13 @@ async def get_mentor_applications(
         )
 
     return [
-        MentorApplicationResponse.model_validate(
-            application
-        )
+        MentorApplicationResponse.model_validate(application)
         for application in applications
     ]
 
 
 # ============================================================
-# UPDATE MENTOR APPLICATION
+# UPDATE APPLICATION
 # ============================================================
 
 @router.put(
@@ -191,15 +197,9 @@ async def update_mentor_application(
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
 ):
-    """
-    Update a mentor application.
-    """
-
     service = MentorApplicationService(session)
 
-    application = await service.get_by_id(
-        application_id
-    )
+    application = await service.get_by_id(application_id)
 
     if application is None:
         raise HTTPException(
@@ -207,50 +207,30 @@ async def update_mentor_application(
             detail="Mentor application not found.",
         )
 
-    if data.phone is not None:
-        application.phone = data.phone
+    updates = data.model_dump(exclude_unset=True)
 
-    if data.role is not None:
-        application.role = data.role
+    for field, value in updates.items():
+        if field in {
+            "phone",
+            "role",
+            "company",
+            "industry",
+            "experience_years",
+            "skills",
+            "languages",
+            "linkedin",
+            "bio",
+            "motivation",
+        } and value is not None:
+            setattr(application, field, value)
 
-    if data.company is not None:
-        application.company = data.company
+    updated_application = await service.update_application(application)
 
-    if data.industry is not None:
-        application.industry = data.industry
-
-    if data.experience_years is not None:
-        application.experience_years = data.experience_years
-
-    if data.skills is not None:
-        application.skills = data.skills
-
-    if data.languages is not None:
-        application.languages = data.languages
-
-    if data.linkedin is not None:
-        application.linkedin = data.linkedin
-
-    if data.bio is not None:
-        application.bio = data.bio
-
-    if data.motivation is not None:
-        application.motivation = data.motivation
-
-    if data.status is not None:
-        application.status = data.status
-
-    updated_application = await service.update_application(
-        application
-    )
-
-    return MentorApplicationResponse.model_validate(
-        updated_application
-    )
+    return MentorApplicationResponse.model_validate(updated_application)
 
 
 # ============================================================
-# DELETE MENTOR APPLICATION
+# DELETE APPLICATION
 # ============================================================
 
 @router.delete(
@@ -262,15 +242,9 @@ async def delete_mentor_application(
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
 ):
-    """
-    Delete a mentor application.
-    """
-
     service = MentorApplicationService(session)
 
-    application = await service.get_by_id(
-        application_id
-    )
+    application = await service.get_by_id(application_id)
 
     if application is None:
         raise HTTPException(
@@ -278,8 +252,6 @@ async def delete_mentor_application(
             detail="Mentor application not found.",
         )
 
-    await service.delete_application(
-        application
-    )
+    await service.delete_application(application)
 
     return None
