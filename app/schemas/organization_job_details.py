@@ -12,6 +12,7 @@ class JobDetailsJobResponse(BaseModel):
 
     id: UUID
     job_id: str
+    job_code: str
 
     title: str
     department: str | None = None

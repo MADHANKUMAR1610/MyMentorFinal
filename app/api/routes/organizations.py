@@ -363,6 +363,7 @@ async def update_my_ats_config(
         current_user.id,
         data,
     )
+
 @router.get("/me/job-assignees")
 async def get_job_assignees(
     current_user=Depends(get_current_user),
@@ -385,7 +386,7 @@ async def get_job_assignees(
         .where(
             User.company_id == company.id,
             User.is_active.is_(True),
-            User.role.in_(["hiring_manager", "interviewer"]),
+            User.role.in_(["hiring_manager", "recruiter"]),
         )
         .order_by(User.name.asc())
     )
@@ -402,13 +403,13 @@ async def get_job_assignees(
             for user in users
             if user.role == "hiring_manager"
         ],
-        "interviewers": [
+        "recruiters": [
             {
                 "id": str(user.id),
                 "name": user.name,
                 "email": user.email,
             }
             for user in users
-            if user.role == "interviewer"
+            if user.role == "recruiter"
         ],
     }

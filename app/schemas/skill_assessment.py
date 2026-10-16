@@ -130,3 +130,17 @@ class SkillAssessmentQuestionResponse(BaseModel):
     is_active: bool
     created_at: datetime
     updated_at: datetime
+
+class StudentSkillAssessmentQuestionResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    category_id: UUID
+    question_order: int
+    title: str
+    problem: str
+    instructions: str | None = None
+    language: str
+    difficulty: str
+    points: int
+    starter_code: str | None = None

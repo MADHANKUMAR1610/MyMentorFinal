@@ -1179,7 +1179,8 @@ class OrganizationJobService:
         return {
             "job": {
                 "id": job.id,
-                "job_id": str(job.id),
+                "job_id": job.job_code,
+                "job_code": job.job_code,
                 "title": job.title,
                 "department": job.department,
                 "location": job.location,

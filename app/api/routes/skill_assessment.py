@@ -1,3 +1,4 @@
+
 from uuid import UUID
 
 from fastapi import (
@@ -10,21 +11,20 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import (
     get_current_admin,
+    get_current_user,
 )
 from app.database.database import get_db
-
 from app.models.user import User
 from app.models.skill_assessment_question import (
     SkillAssessmentQuestion,
 )
-
 from app.schemas.skill_assessment import (
     SkillAssessmentCategoryResponse,
     SkillAssessmentQuestionCreate,
     SkillAssessmentQuestionResponse,
     SkillAssessmentQuestionUpdate,
+    StudentSkillAssessmentQuestionResponse,
 )
-
 from app.services.skill_assessment_service import (
     SkillAssessmentService,
 )
@@ -37,28 +37,18 @@ router = APIRouter(
 
 
 # ============================================================
-# GET CATEGORIES
+# GET CATEGORIES - STUDENTS AND ADMINS
 # ============================================================
 
 @router.get(
     "/categories",
-    response_model=list[
-        SkillAssessmentCategoryResponse
-    ],
+    response_model=list[SkillAssessmentCategoryResponse],
 )
 async def get_categories(
-    current_user: User = Depends(
-        get_current_admin
-    ),
-    session: AsyncSession = Depends(
-        get_db
-    ),
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
 ):
-
-    service = SkillAssessmentService(
-        session
-    )
-
+    service = SkillAssessmentService(session)
     rows = await service.get_categories()
 
     return [
@@ -72,57 +62,45 @@ async def get_categories(
             is_active=category.is_active,
         )
         for category, question_count in rows
+        if category.is_active
     ]
 
 
 # ============================================================
-# GET QUESTIONS BY CATEGORY
+# GET QUESTIONS BY CATEGORY - STUDENTS AND ADMINS
+# Does not expose expected answers or evaluation criteria
 # ============================================================
 
 @router.get(
     "/categories/{category_id}/questions",
-    response_model=list[
-        SkillAssessmentQuestionResponse
-    ],
+    response_model=list[StudentSkillAssessmentQuestionResponse],
 )
 async def get_questions(
     category_id: UUID,
-    current_user: User = Depends(
-        get_current_admin
-    ),
-    session: AsyncSession = Depends(
-        get_db
-    ),
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
 ):
+    service = SkillAssessmentService(session)
 
-    service = SkillAssessmentService(
-        session
-    )
+    category = await service.get_category(category_id)
 
-    category = await service.get_category(
-        category_id
-    )
-
-    if category is None:
+    if category is None or not category.is_active:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Assessment category not found.",
         )
 
-    questions = await service.get_questions(
-        category_id
-    )
+    questions = await service.get_questions(category_id)
 
     return [
-        SkillAssessmentQuestionResponse.model_validate(
-            question
-        )
+        StudentSkillAssessmentQuestionResponse.model_validate(question)
         for question in questions
+        if question.is_active
     ]
 
 
 # ============================================================
-# CREATE QUESTION
+# CREATE QUESTION - ADMIN ONLY
 # ============================================================
 
 @router.post(
@@ -132,25 +110,12 @@ async def get_questions(
 )
 async def create_question(
     data: SkillAssessmentQuestionCreate,
-    current_user: User = Depends(
-        get_current_admin
-    ),
-    session: AsyncSession = Depends(
-        get_db
-    ),
+    current_user: User = Depends(get_current_admin),
+    session: AsyncSession = Depends(get_db),
 ):
+    service = SkillAssessmentService(session)
 
-    service = SkillAssessmentService(
-        session
-    )
-
-    # --------------------------------------------------------
-    # CHECK CATEGORY
-    # --------------------------------------------------------
-
-    category = await service.get_category(
-        data.category_id
-    )
+    category = await service.get_category(data.category_id)
 
     if category is None:
         raise HTTPException(
@@ -158,14 +123,8 @@ async def create_question(
             detail="Assessment category not found.",
         )
 
-    # --------------------------------------------------------
-    # CHECK MAX 5 QUESTIONS
-    # --------------------------------------------------------
-
-    question_count = await (
-        service.get_question_count(
-            data.category_id
-        )
+    question_count = await service.get_question_count(
+        data.category_id
     )
 
     if question_count >= category.max_questions:
@@ -177,14 +136,8 @@ async def create_question(
             ),
         )
 
-    # --------------------------------------------------------
-    # ORDER
-    # --------------------------------------------------------
-
-    question_order = await (
-        service.get_next_order(
-            data.category_id
-        )
+    question_order = await service.get_next_order(
+        data.category_id
     )
 
     question = SkillAssessmentQuestion(
@@ -201,11 +154,7 @@ async def create_question(
         evaluation_criteria=data.evaluation_criteria,
     )
 
-    created_question = await (
-        service.create_question(
-            question
-        )
-    )
+    created_question = await service.create_question(question)
 
     return SkillAssessmentQuestionResponse.model_validate(
         created_question
@@ -213,7 +162,7 @@ async def create_question(
 
 
 # ============================================================
-# GET QUESTION
+# GET SINGLE QUESTION - ADMIN ONLY
 # ============================================================
 
 @router.get(
@@ -222,21 +171,11 @@ async def create_question(
 )
 async def get_question(
     question_id: UUID,
-    current_user: User = Depends(
-        get_current_admin
-    ),
-    session: AsyncSession = Depends(
-        get_db
-    ),
+    current_user: User = Depends(get_current_admin),
+    session: AsyncSession = Depends(get_db),
 ):
-
-    service = SkillAssessmentService(
-        session
-    )
-
-    question = await service.get_question(
-        question_id
-    )
+    service = SkillAssessmentService(session)
+    question = await service.get_question(question_id)
 
     if question is None:
         raise HTTPException(
@@ -244,13 +183,11 @@ async def get_question(
             detail="Question not found.",
         )
 
-    return SkillAssessmentQuestionResponse.model_validate(
-        question
-    )
+    return SkillAssessmentQuestionResponse.model_validate(question)
 
 
 # ============================================================
-# UPDATE QUESTION
+# UPDATE QUESTION - ADMIN ONLY
 # ============================================================
 
 @router.put(
@@ -260,21 +197,11 @@ async def get_question(
 async def update_question(
     question_id: UUID,
     data: SkillAssessmentQuestionUpdate,
-    current_user: User = Depends(
-        get_current_admin
-    ),
-    session: AsyncSession = Depends(
-        get_db
-    ),
+    current_user: User = Depends(get_current_admin),
+    session: AsyncSession = Depends(get_db),
 ):
-
-    service = SkillAssessmentService(
-        session
-    )
-
-    question = await service.get_question(
-        question_id
-    )
+    service = SkillAssessmentService(session)
+    question = await service.get_question(question_id)
 
     if question is None:
         raise HTTPException(
@@ -307,18 +234,12 @@ async def update_question(
         question.expected_answer = data.expected_answer
 
     if data.evaluation_criteria is not None:
-        question.evaluation_criteria = (
-            data.evaluation_criteria
-        )
+        question.evaluation_criteria = data.evaluation_criteria
 
     if data.is_active is not None:
         question.is_active = data.is_active
 
-    updated_question = await (
-        service.update_question(
-            question
-        )
-    )
+    updated_question = await service.update_question(question)
 
     return SkillAssessmentQuestionResponse.model_validate(
         updated_question
@@ -326,7 +247,7 @@ async def update_question(
 
 
 # ============================================================
-# DELETE QUESTION
+# DELETE QUESTION - ADMIN ONLY
 # ============================================================
 
 @router.delete(
@@ -335,21 +256,11 @@ async def update_question(
 )
 async def delete_question(
     question_id: UUID,
-    current_user: User = Depends(
-        get_current_admin
-    ),
-    session: AsyncSession = Depends(
-        get_db
-    ),
+    current_user: User = Depends(get_current_admin),
+    session: AsyncSession = Depends(get_db),
 ):
-
-    service = SkillAssessmentService(
-        session
-    )
-
-    question = await service.get_question(
-        question_id
-    )
+    service = SkillAssessmentService(session)
+    question = await service.get_question(question_id)
 
     if question is None:
         raise HTTPException(
@@ -357,8 +268,5 @@ async def delete_question(
             detail="Question not found.",
         )
 
-    await service.delete_question(
-        question
-    )
-
+    await service.delete_question(question)
     return None
