@@ -1,3 +1,6 @@
+
+# app/services/mentor_application_service.py
+
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,14 +20,12 @@ class MentorApplicationService:
         self,
         application_id: UUID,
     ) -> MentorApplication | None:
-
         return await self.repository.get_by_id(application_id)
 
     async def get_by_email(
         self,
         email: str,
     ) -> MentorApplication | None:
-
         return await self.repository.get_by_email(email)
 
     async def get_by_status(
@@ -34,7 +35,6 @@ class MentorApplicationService:
         skip: int = 0,
         limit: int = 100,
     ) -> list[MentorApplication]:
-
         return await self.repository.get_by_status(
             status,
             skip=skip,
@@ -48,7 +48,6 @@ class MentorApplicationService:
         skip: int = 0,
         limit: int = 100,
     ) -> list[MentorApplication]:
-
         return await self.repository.get_by_industry(
             industry,
             skip=skip,
@@ -61,7 +60,6 @@ class MentorApplicationService:
         skip: int = 0,
         limit: int = 100,
     ) -> list[MentorApplication]:
-
         return await self.repository.get_pending(
             skip=skip,
             limit=limit,
@@ -71,19 +69,16 @@ class MentorApplicationService:
         self,
         application: MentorApplication,
     ) -> MentorApplication:
-
         return await self.repository.create(application)
 
     async def update_application(
         self,
         application: MentorApplication,
     ) -> MentorApplication:
-
         return await self.repository.update(application)
 
     async def delete_application(
         self,
         application: MentorApplication,
     ) -> None:
-
         await self.repository.delete(application)

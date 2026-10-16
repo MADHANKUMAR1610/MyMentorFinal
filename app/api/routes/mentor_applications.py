@@ -53,21 +53,26 @@ async def create_mentor_application(
             detail="A mentor application already exists for this email.",
         )
 
+    
     application = MentorApplication(
-        name=data.name,
-        email=data.email,
-        phone=data.phone,
-        role=data.role,
-        company=data.company,
-        industry=data.industry,
-        experience_years=data.experience_years,
-        skills=data.skills,
-        languages=data.languages,
-        linkedin=data.linkedin,
-        bio=data.bio,
-        motivation=data.motivation,
-        status="pending",
-    )
+    name=data.name,
+    email=data.email,
+    phone=data.phone,
+    role=data.role,
+    company=data.company,
+    industry=data.industry,
+    experience_years=data.experience_years,
+    skills=data.skills,
+    languages=data.languages,
+    linkedin=data.linkedin,
+    bio=data.bio,
+    motivation=data.motivation,
+    price_per_session=data.price_per_session,
+    availability=data.availability,
+    start_time=data.start_time,
+    end_time=data.end_time,
+    status="pending",
+)
 
     created_application = await service.create_application(
         application
