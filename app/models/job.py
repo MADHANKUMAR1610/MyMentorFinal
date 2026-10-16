@@ -73,6 +73,13 @@ class Job(
         nullable=True,
         index=True,
     )
+    
+    interviewer_id: Mapped[uuid.UUID | None] = mapped_column(
+    UUID(as_uuid=True),
+    ForeignKey("users.id", ondelete="SET NULL"),
+    nullable=True,
+    index=True,
+)
 
     # ============================================================
     # BASIC INFORMATION

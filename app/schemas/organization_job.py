@@ -130,6 +130,7 @@ class OrganizationJobCreate(BaseModel):
     recruiter_id: UUID | None = None
 
     hiring_manager_id: UUID | None = None
+    interviewer_id: UUID | None = None
 
     # --------------------------------------------------------
     # JOB DESCRIPTION
@@ -284,6 +285,7 @@ class OrganizationJobUpdate(BaseModel):
     recruiter_id: UUID | None = None
 
     hiring_manager_id: UUID | None = None
+    interviewer_id: UUID | None = None
 
     # --------------------------------------------------------
     # JOB DESCRIPTION
@@ -415,6 +417,7 @@ class OrganizationJobResponse(BaseModel):
     recruiter_id: UUID | None = None
 
     hiring_manager_id: UUID | None = None
+    interviewer_id: UUID | None = None
 
     summary: str | None = None
 
@@ -509,6 +512,7 @@ class OrganizationJobDraftCreate(BaseModel):
     recruiter_id: UUID | None = None
 
     hiring_manager_id: UUID | None = None
+    interviewer_id: UUID | None = None
 
     # Job Description
     summary: str | None = None

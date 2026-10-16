@@ -9,8 +9,11 @@ from app.schemas.job_application import (
     JobApplicationStatusUpdate,
     JobApplicationResponse,
 )
+from sqlalchemy import select
+from app.models.user import User
 from app.schemas.organization_job_details import (
     OrganizationJobDetailsResponse,
+    
 )
 from app.services.job_application_service import (
     JobApplicationService,
@@ -360,3 +363,52 @@ async def update_my_ats_config(
         current_user.id,
         data,
     )
+@router.get("/me/job-assignees")
+async def get_job_assignees(
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    organization_repository = OrganizationRepository(db)
+
+    company = await organization_repository.get_by_admin_user_id(
+        current_user.id
+    )
+
+    if company is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Organization not found for this user.",
+        )
+
+    result = await db.execute(
+        select(User)
+        .where(
+            User.company_id == company.id,
+            User.is_active.is_(True),
+            User.role.in_(["hiring_manager", "interviewer"]),
+        )
+        .order_by(User.name.asc())
+    )
+
+    users = result.scalars().all()
+
+    return {
+        "hiring_managers": [
+            {
+                "id": str(user.id),
+                "name": user.name,
+                "email": user.email,
+            }
+            for user in users
+            if user.role == "hiring_manager"
+        ],
+        "interviewers": [
+            {
+                "id": str(user.id),
+                "name": user.name,
+                "email": user.email,
+            }
+            for user in users
+            if user.role == "interviewer"
+        ],
+    }

@@ -1,7 +1,6 @@
 import re
 import math
 from uuid import UUID
-
 from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -61,6 +60,43 @@ class OrganizationJobService:
              InterviewRepository(db)
         )
         self.audit_service = AuditLogService(db)
+
+    async def validate_job_assignees(
+        self,
+        company_id: UUID,
+        hiring_manager_id: UUID | None,
+        interviewer_id: UUID | None,
+    ) -> None:
+        """Validate that assigned users are active members of this organization.
+
+        This assumes User.role stores `hiring_manager` and `interviewer`.
+        Adjust these values if your Add User API stores different role strings.
+        """
+        assignments = [
+            (hiring_manager_id, "hiring_manager", "Hiring Manager"),
+            (interviewer_id, "interviewer", "Interviewer"),
+        ]
+
+        for user_id, expected_role, label in assignments:
+            if user_id is None:
+                continue
+
+            result = await self.db.execute(
+                select(User).where(
+                    User.id == user_id,
+                    User.company_id == company_id,
+                    User.is_active.is_(True),
+                    User.role == expected_role,
+                )
+            )
+            if result.scalar_one_or_none() is None:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=(
+                        f"Invalid {label}. Select an active user with the "
+                        "correct role from your organization."
+                    ),
+                )
     # ============================================================
     # GET MY JOBS - FULL DETAILS
     # ============================================================
@@ -120,6 +156,13 @@ class OrganizationJobService:
             )
 
         # --------------------------------------------------------
+        # Validate Hiring Manager and Interviewer assignments
+        await self.validate_job_assignees(
+            company_id=company.id,
+            hiring_manager_id=data.hiring_manager_id,
+            interviewer_id=data.interviewer_id,
+        )
+
         # Prepare job data
         # --------------------------------------------------------
 
@@ -212,6 +255,13 @@ class OrganizationJobService:
             )
 
         # --------------------------------------------------------
+        # Validate Hiring Manager and Interviewer assignments
+        await self.validate_job_assignees(
+            company_id=company.id,
+            hiring_manager_id=data.hiring_manager_id,
+            interviewer_id=data.interviewer_id,
+        )
+
         # Prepare draft data
         # --------------------------------------------------------
 
@@ -366,6 +416,17 @@ class OrganizationJobService:
 
         update_data = data.model_dump(
             exclude_unset=True
+        )
+
+        # Validate selected assignments, preserving existing values when omitted.
+        await self.validate_job_assignees(
+            company_id=company.id,
+            hiring_manager_id=update_data.get(
+                "hiring_manager_id", job.hiring_manager_id
+            ),
+            interviewer_id=update_data.get(
+                "interviewer_id", job.interviewer_id
+            ),
         )
 
         # --------------------------------------------------------
