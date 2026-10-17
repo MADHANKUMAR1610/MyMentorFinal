@@ -22,6 +22,7 @@ from app.repositories.interview_repository import (
 from app.services.audit_log_service import (
     AuditLogService,
 )
+from app.services.job_matching_service import JobMatchingService
 from app.models.user import User
 from app.models.user_profile import UserProfile
 from app.models.job_application import JobApplication
@@ -784,50 +785,101 @@ class OrganizationJobService:
         # --------------------------------------------------------
 
         application_items = []
+        scores_updated = False
 
         for application in applications:
 
+            # ----------------------------------------------------
+            # Recruiter: application assignment first, then job
+            # assignment as a fallback.
+            # ----------------------------------------------------
+
             recruiter_name = None
+            recruiter_id = (
+                application.recruiter_id
+                or job.recruiter_id
+            )
 
-            if application.recruiter_id:
-
+            if recruiter_id:
                 recruiter = await self.db.get(
                     User,
-                    application.recruiter_id,
+                    recruiter_id,
                 )
 
                 if recruiter:
                     recruiter_name = recruiter.name
 
+            # ----------------------------------------------------
+            # Recalculate missing/zero scores for registered
+            # candidates with a profile.
+            # ----------------------------------------------------
+
+            if application.applicant_user_id:
+                needs_ats = (
+                    application.ats_score is None
+                    or application.ats_score <= 0
+                )
+                needs_match = (
+                    application.match_score is None
+                    or application.match_score <= 0
+                )
+
+                if needs_ats or needs_match:
+                    profile_result = await self.db.execute(
+                        select(UserProfile).where(
+                            UserProfile.user_id
+                            == application.applicant_user_id
+                        )
+                    )
+                    profile = profile_result.scalar_one_or_none()
+
+                    if profile:
+                        if needs_ats:
+                            application.ats_score = (
+                                JobMatchingService.calculate_ats_score(
+                                    job=job,
+                                    profile=profile,
+                                    application_experience=application.experience,
+                                )
+                            )
+                            scores_updated = True
+
+                        if needs_match:
+                            application.match_score = (
+                                JobMatchingService.calculate_match_score(
+                                    job=job,
+                                    profile=profile,
+                                    application_experience=application.experience,
+                                )
+                            )
+                            scores_updated = True
+
             application_items.append(
-                {
-                    "application_id": application.id,
+    {
+        "application_id": application.id,
+        "candidate_id": application.applicant_user_id,
+        "candidate_name": application.name,
+        "applied_at": application.created_at,
 
-                    "candidate_id":
-                        application.applicant_user_id,
+        # Scores
+        "ats_score": application.ats_score,
+        "match_score": application.match_score,
 
-                    "candidate_name":
-                        application.name,
+        # Application details
+        "experience": application.experience,
+        "stage": application.status,
 
-                    "applied_at":
-                        application.created_at,
+        # Recruiter assignment
+        "recruiter_id": recruiter_id,
+        "recruiter": recruiter_name,
+        "recruiter_name": recruiter_name,
+    }
+)
 
-                    "ats_score":
-                        application.ats_score,
-
-                    "match_score":
-                        application.match_score,
-
-                    "experience":
-                        application.experience,
-
-                    "stage":
-                        application.status,
-
-                    "recruiter":
-                        recruiter_name,
-                }
-            )
+        # Persist calculated scores so subsequent reads return the
+        # same values. No changes are committed if nothing changed.
+        if scores_updated:
+            await self.db.commit()
 
         # --------------------------------------------------------
         # Overview counts

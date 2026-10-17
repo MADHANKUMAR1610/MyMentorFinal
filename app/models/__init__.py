@@ -35,3 +35,4 @@ from app.models.skill_assessment_question import (
 from app.models.skill_assessment_submission import (
     SkillAssessmentSubmission,
 )
+from app.models.notification import Notification
