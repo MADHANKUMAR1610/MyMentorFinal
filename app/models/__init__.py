@@ -32,3 +32,6 @@ from app.models.skill_assessment_category import (
 from app.models.skill_assessment_question import (
     SkillAssessmentQuestion,
 )
+from app.models.skill_assessment_submission import (
+    SkillAssessmentSubmission,
+)

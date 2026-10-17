@@ -27,7 +27,16 @@ from app.schemas.skill_assessment import (
 )
 from app.services.skill_assessment_service import (
     SkillAssessmentService,
+    
 )
+from app.schemas.skill_assessment_execution import (
+    SkillAssessmentCodeRequest,
+    SkillAssessmentCodeResponse,
+)
+from app.services.skill_assessment_execution_service import (
+    SkillAssessmentExecutionService,
+)
+
 
 
 router = APIRouter(
@@ -270,3 +279,83 @@ async def delete_question(
 
     await service.delete_question(question)
     return None
+
+# ============================================================
+# RUN SKILL ASSESSMENT CODE
+# Runs visible test cases only.
+# Does not save scores, award XP, or progress checkpoints.
+# ============================================================
+
+@router.post(
+    "/questions/{question_id}/run",
+    response_model=SkillAssessmentCodeResponse,
+)
+async def run_assessment_code(
+    question_id: UUID,
+    data: SkillAssessmentCodeRequest,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+):
+    service = SkillAssessmentExecutionService(session)
+
+    return await service.execute(
+        user_id=current_user.id,
+        question_id=question_id,
+        language=data.language,
+        code=data.code,
+        submit=False,
+    )
+
+
+
+# ============================================================
+# RUN SKILL ASSESSMENT CODE
+# Executes code without recording assessment points.
+# ============================================================
+
+@router.post(
+    "/questions/{question_id}/run",
+    response_model=SkillAssessmentCodeResponse,
+)
+async def run_assessment_code(
+    question_id: UUID,
+    data: SkillAssessmentCodeRequest,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+):
+    service = SkillAssessmentExecutionService(session)
+
+    return await service.execute(
+        user_id=current_user.id,
+        question_id=question_id,
+        language=data.language,
+        code=data.code,
+        submit=False,
+    )
+
+
+# ============================================================
+# SUBMIT SKILL ASSESSMENT CODE
+# Evaluates code and records the assessment score.
+# Does not award XP or advance checkpoints.
+# ============================================================
+
+@router.post(
+    "/questions/{question_id}/submit",
+    response_model=SkillAssessmentCodeResponse,
+)
+async def submit_assessment_code(
+    question_id: UUID,
+    data: SkillAssessmentCodeRequest,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+):
+    service = SkillAssessmentExecutionService(session)
+
+    return await service.execute(
+        user_id=current_user.id,
+        question_id=question_id,
+        language=data.language,
+        code=data.code,
+        submit=True,
+    )
