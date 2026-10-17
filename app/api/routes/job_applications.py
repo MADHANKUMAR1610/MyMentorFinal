@@ -1,29 +1,14 @@
-# app/api/routes/job_applications.py
 
 from uuid import UUID
 from typing import Annotated
 
-from fastapi import (
-    APIRouter,
-    Depends,
-    HTTPException,
-    Query,
-    status,
-)
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import Annotated
-
-from fastapi import Depends, HTTPException, Query, APIRouter, status
-from sqlalchemy.ext.asyncio import AsyncSession
-
-from app.models.user import User
 
 from app.database.database import get_db
 from app.api.dependencies import get_current_user
-
 from app.models.user import User
 from app.models.job_application import JobApplication
-
 from app.schemas.job_application import (
     JobApplicationCreate,
     JobApplicationUpdate,
@@ -31,7 +16,6 @@ from app.schemas.job_application import (
     JobApplicationStatusUpdate,
     JobApplicationStatsResponse,
 )
-
 from app.services.job_application_service import JobApplicationService
 from app.services.job_service import JobService
 
@@ -40,11 +24,6 @@ router = APIRouter(
     prefix="/job-applications",
     tags=["Job Applications"],
 )
-
-
-# ------------------------------------------------------------------
-# Dependencies
-# ------------------------------------------------------------------
 
 
 async def get_job_application_service(
@@ -59,10 +38,26 @@ async def get_job_service(
     return JobService(db)
 
 
-# ------------------------------------------------------------------
-# Create Application
-# ------------------------------------------------------------------
+def application_response(
+    service: JobApplicationService,
+    application: JobApplication,
+) -> JobApplicationResponse:
+    return service.build_application_response(application)
 
+
+def application_responses(
+    service: JobApplicationService,
+    applications: list[JobApplication],
+) -> list[JobApplicationResponse]:
+    return [
+        service.build_application_response(application)
+        for application in applications
+    ]
+
+
+# ============================================================
+# CREATE APPLICATION
+# ============================================================
 
 @router.post(
     "",
@@ -81,52 +76,58 @@ async def create_application(
         Depends(get_job_service),
     ],
 ):
-    """
-    Submit an application for a job.
+    if str(current_user.role).lower() != "student":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only student accounts can submit job applications.",
+        )
 
-    The service is responsible for:
-    - Email normalization
-    - Duplicate application validation
-    - Resume validation
-    - Initial status assignment
-    - Application creation
-    """
+    if not current_user.email:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Your account must have an email address.",
+        )
 
     job = await job_service.get_by_id(data.job_id)
 
     if not job:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Job not found",
+            detail="Job not found.",
         )
 
     if hasattr(job, "is_active") and not job.is_active:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="This job is no longer accepting applications",
+            detail="This job is no longer accepting applications.",
         )
 
     application = JobApplication(
-       job_id=data.job_id,
-       applicant_user_id=current_user.id,
-       name=data.name,
-       email=data.email,
-       phone=data.phone,
-       experience=data.experience,
-       cover_note=data.cover_note,
-       resume_file_id=data.resume_file_id,
-       resume_source=data.resume_source,
-       resume_link=str(data.resume_link) if data.resume_link else None,
+        job_id=data.job_id,
+        applicant_user_id=current_user.id,
+        name=current_user.name,
+        email=current_user.email.strip().lower(),
+        phone=data.phone,
+        experience=data.experience,
+        cover_note=data.cover_note,
+        resume_file_id=data.resume_file_id,
+        resume_source=data.resume_source,
+        resume_link=str(data.resume_link) if data.resume_link else None,
     )
 
-    application = await application_service.submit_application(application)
+    try:
+        created = await application_service.submit_application(application)
+        return application_response(application_service, created)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
 
-    return application
 
-# ------------------------------------------------------------------
-# Get My Applications
-# ------------------------------------------------------------------
-
+# ============================================================
+# GET MY APPLICATIONS
+# ============================================================
 
 @router.get(
     "/me",
@@ -138,83 +139,64 @@ async def get_my_applications(
         JobApplicationService,
         Depends(get_job_application_service),
     ],
-    skip: int = Query(
-        default=0,
-        ge=0,
-        description="Number of records to skip",
-    ),
-    limit: int = Query(
-        default=20,
-        ge=1,
-        le=100,
-        description="Maximum number of records to return",
-    ),
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=20, ge=1, le=100),
 ):
-    """
-    Get applications submitted by the authenticated user.
-    """
-
     applications = await application_service.get_by_applicant_user_id(
         user_id=current_user.id,
         skip=skip,
         limit=limit,
     )
 
-    return applications
+    return application_responses(application_service, applications)
 
-# ------------------------------------------------------------------
-# Recruiter: Get Applications By Status
-# ------------------------------------------------------------------
 
+# ============================================================
+# GET APPLICATIONS BY STATUS
+# ============================================================
 
 @router.get(
     "/recruiter/status",
     response_model=list[JobApplicationResponse],
 )
 async def get_applications_by_status(
-    current_user: Annotated[
-        User,
-        Depends(get_current_user),
-    ],
+    current_user: Annotated[User, Depends(get_current_user)],
     application_service: Annotated[
         JobApplicationService,
         Depends(get_job_application_service),
     ],
-    application_status: str = Query(
-        ...,
-        alias="status",
-        description="Application status",
-    ),
-    skip: int = Query(
-        default=0,
-        ge=0,
-        description="Number of records to skip",
-    ),
-    limit: int = Query(
-        default=20,
-        ge=1,
-        le=100,
-        description="Maximum number of records to return",
-    ),
+    application_status: str = Query(..., alias="status"),
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=20, ge=1, le=100),
 ):
-    """
-    Get applications by status.
+    if str(current_user.role).lower() not in {
+        "recruiter",
+        "organization_admin",
+        "hiring_manager",
+    }:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You are not authorized to view recruiter applications.",
+        )
 
-    Example:
-    GET /job-applications/recruiter/status?status=screening
-    """
+    try:
+        applications = await application_service.get_by_status(
+            status=application_status,
+            skip=skip,
+            limit=limit,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
 
-    applications = await application_service.get_by_status(
-        application_status=application_status,
-        skip=skip,
-        limit=limit,
-    )
+    return application_responses(application_service, applications)
 
-    return applications
-# ------------------------------------------------------------------
-# Get Application By ID
-# ------------------------------------------------------------------
 
+# ============================================================
+# GET APPLICATION BY ID
+# ============================================================
 
 @router.get(
     "/{application_id}",
@@ -228,37 +210,26 @@ async def get_application_by_id(
         Depends(get_job_application_service),
     ],
 ):
-    """
-    Get one application.
+    application = await application_service.get_by_id(application_id)
 
-    Applicants can access only their own applications.
-    Recruiter/company authorization should be handled separately
-    if recruiter access is required.
-    """
-
-    application = await application_service.get_by_id(
-        application_id=application_id,
-    )
-
-    if not application:
+    if application is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Application not found",
+            detail="Application not found.",
         )
 
-    if application.user_id != current_user.id:
+    if application.applicant_user_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="You are not authorized to access this application",
+            detail="You are not authorized to access this application.",
         )
 
-    return application
+    return application_response(application_service, application)
 
 
-# ------------------------------------------------------------------
-# Update My Application
-# ------------------------------------------------------------------
-
+# ============================================================
+# UPDATE MY APPLICATION
+# ============================================================
 
 @router.patch(
     "/{application_id}",
@@ -273,52 +244,41 @@ async def update_application(
         Depends(get_job_application_service),
     ],
 ):
-    """
-    Update an application owned by the authenticated user.
+    application = await application_service.get_by_id(application_id)
 
-    Status changes are not allowed through this endpoint.
-    Use the recruiter status endpoint for status updates.
-    """
-
-    application = await application_service.get_by_id(
-        application_id=application_id,
-    )
-
-    if not application:
+    if application is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Application not found",
+            detail="Application not found.",
         )
 
-    if application.user_id != current_user.id:
+    if application.applicant_user_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="You are not authorized to update this application",
+            detail="You are not authorized to update this application.",
         )
 
-    if application.status in {
-        "selected",
-        "rejected",
-        "withdrawn",
-    }:
+    if application.status in {"selected", "rejected", "withdrawn"}:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=(
-                "Applications with selected, rejected, or withdrawn "
-                "status cannot be updated"
-            ),
+            detail="This application can no longer be updated.",
         )
 
-    update_data = data.model_dump(
-        exclude_unset=True,
-    )
+    update_data = data.model_dump(exclude_unset=True)
 
-    if "applicant_email" in update_data:
-        update_data["applicant_email"] = (
-            str(update_data["applicant_email"])
-            .strip()
-            .lower()
-        )
+    for field in (
+        "id",
+        "job_id",
+        "applicant_user_id",
+        "recruiter_id",
+        "status",
+        "ats_score",
+        "match_score",
+    ):
+        update_data.pop(field, None)
+
+    if "email" in update_data and update_data["email"]:
+        update_data["email"] = update_data["email"].strip().lower()
 
     if "resume_link" in update_data:
         update_data["resume_link"] = (
@@ -327,25 +287,21 @@ async def update_application(
             else None
         )
 
-    updated_application = await application_service.update_application(
-        application_id=application_id,
-        user_id=current_user.id,
-        update_data=update_data,
+    # Update only fields allowed by the schema.
+    for field, value in update_data.items():
+        if hasattr(application, field):
+            setattr(application, field, value)
+
+    updated_application = await application_service.repository.update(
+        application
     )
 
-    if not updated_application:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Application not found",
-        )
-
-    return updated_application
+    return application_response(application_service, updated_application)
 
 
-# ------------------------------------------------------------------
-# Withdraw My Application
-# ------------------------------------------------------------------
-
+# ============================================================
+# WITHDRAW APPLICATION
+# ============================================================
 
 @router.delete(
     "/{application_id}",
@@ -359,54 +315,35 @@ async def withdraw_application(
         Depends(get_job_application_service),
     ],
 ):
-    """
-    Withdraw an application owned by the authenticated user.
+    application = await application_service.get_by_id(application_id)
 
-    This should preferably perform a soft delete by changing
-    the application status to withdrawn.
-    """
-
-    application = await application_service.get_by_id(
-        application_id=application_id,
-    )
-
-    if not application:
+    if application is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Application not found",
+            detail="Application not found.",
         )
 
-    if application.user_id != current_user.id:
+    if application.applicant_user_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="You are not authorized to withdraw this application",
+            detail="You are not authorized to withdraw this application.",
         )
 
-    if application.status in {
-        "selected",
-        "rejected",
-    }:
+    if application.status in {"selected", "rejected"}:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=(
-                "Selected or rejected applications cannot be withdrawn"
-            ),
+            detail="Selected or rejected applications cannot be withdrawn.",
         )
 
-    await application_service.update_status(
-        application_id=application_id,
-        new_status="withdrawn",
-        changed_by_user_id=current_user.id,
-    )
+    application.status = "withdrawn"
+    await application_service.repository.update(application)
 
     return None
 
 
-
-# ------------------------------------------------------------------
-# Recruiter: Get Applications By Company
-# ------------------------------------------------------------------
-
+# ============================================================
+# GET APPLICATIONS BY COMPANY
+# ============================================================
 
 @router.get(
     "/recruiter/company/{company_id}",
@@ -422,11 +359,21 @@ async def get_applications_by_company(
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=20, ge=1, le=100),
 ):
-    """
-    Get all applications for jobs belonging to a company.
+    if str(current_user.role).lower() not in {
+        "recruiter",
+        "organization_admin",
+        "hiring_manager",
+    }:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You are not authorized to view company applications.",
+        )
 
-    Add a recruiter/company membership check before returning data.
-    """
+    if getattr(current_user, "company_id", None) != company_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You cannot access another company's applications.",
+        )
 
     applications = await application_service.get_by_company_id(
         company_id=company_id,
@@ -434,13 +381,12 @@ async def get_applications_by_company(
         limit=limit,
     )
 
-    return applications
+    return application_responses(application_service, applications)
 
 
-# ------------------------------------------------------------------
-# Recruiter: Update Application Status
-# ------------------------------------------------------------------
-
+# ============================================================
+# UPDATE APPLICATION STATUS
+# ============================================================
 
 @router.patch(
     "/recruiter/{application_id}/status",
@@ -455,42 +401,60 @@ async def update_application_status(
         Depends(get_job_application_service),
     ],
 ):
-    """
-    Recruiter updates the status of an application.
-
-    Add organization/company authorization before calling the service.
-    """
-
-    application = await application_service.get_by_id(
-        application_id=application_id,
-    )
-
-    if not application:
+    if str(current_user.role).lower() not in {
+        "recruiter",
+        "organization_admin",
+        "hiring_manager",
+    }:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Application not found",
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You are not authorized to update application status.",
         )
 
-    updated_application = await application_service.update_status(
-        application_id=application_id,
-        new_status=data.status,
-        changed_by_user_id=current_user.id,
-        notes=getattr(data, "notes", None),
-    )
+    application = await application_service.get_by_id(application_id)
 
-    if not updated_application:
+    if application is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Application not found",
+            detail="Application not found.",
         )
 
-    return updated_application
+    company_id = getattr(current_user, "company_id", None)
+
+    if company_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Your account is not associated with a company.",
+        )
+
+    try:
+        updated_application = (
+            await application_service.update_organization_application_status(
+                application_id=application_id,
+                company_id=company_id,
+                new_status=data.status,
+                performed_by_user_id=current_user.id,
+                performed_by_name=getattr(current_user, "name", "") or "",
+            )
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+
+    if updated_application is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Application not found for your company.",
+        )
+
+    return application_response(application_service, updated_application)
 
 
-# ------------------------------------------------------------------
-# Recruiter: Application Statistics
-# ------------------------------------------------------------------
-
+# ============================================================
+# APPLICATION STATISTICS
+# ============================================================
 
 @router.get(
     "/recruiter/stats/{company_id}",
@@ -504,15 +468,22 @@ async def get_application_stats(
         Depends(get_job_application_service),
     ],
 ):
-    """
-    Get application statistics for a company.
+    if str(current_user.role).lower() not in {
+        "recruiter",
+        "organization_admin",
+        "hiring_manager",
+    }:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You are not authorized to view application statistics.",
+        )
 
-    The service should return a dictionary/object matching
-    JobApplicationStatsResponse.
-    """
+    if getattr(current_user, "company_id", None) != company_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You cannot access another company's statistics.",
+        )
 
-    stats = await application_service.get_statistics(
-        company_id=company_id,
+    return await application_service.get_company_application_stats(
+        company_id
     )
-
-    return stats

@@ -1,8 +1,10 @@
 import re
 import math
+from types import SimpleNamespace
 from uuid import UUID
 from fastapi import HTTPException, status
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.repositories.organization_repository import (
@@ -826,55 +828,61 @@ class OrganizationJobService:
 
                 if needs_ats or needs_match:
                     profile_result = await self.db.execute(
-                        select(UserProfile).where(
-                            UserProfile.user_id
-                            == application.applicant_user_id
+                        select(UserProfile)
+                        .options(selectinload(UserProfile.work_experiences))
+                        .where(
+                            UserProfile.user_id == application.applicant_user_id
                         )
                     )
                     profile = profile_result.scalar_one_or_none()
 
-                    if profile:
-                        if needs_ats:
-                            application.ats_score = (
-                                JobMatchingService.calculate_ats_score(
-                                    job=job,
-                                    profile=profile,
-                                    application_experience=application.experience,
-                                )
-                            )
-                            scores_updated = True
+                    # If the candidate has no profile yet, calculate a
+                    # provisional score from the application experience and
+                    # treat unavailable profile fields as missing information.
+                    # This avoids returning null scores indefinitely.
+                    if profile is None:
+                        profile = SimpleNamespace(
+                            skills=[],
+                            work_experiences=[],
+                            education=None,
+                            career_goal=None,
+                        )
 
-                        if needs_match:
-                            application.match_score = (
-                                JobMatchingService.calculate_match_score(
-                                    job=job,
-                                    profile=profile,
-                                    application_experience=application.experience,
-                                )
+                    if needs_ats:
+                        application.ats_score = (
+                            JobMatchingService.calculate_ats_score(
+                                job=job,
+                                profile=profile,
+                                application_experience=application.experience,
                             )
-                            scores_updated = True
+                        )
+                        scores_updated = True
+
+                    if needs_match:
+                        application.match_score = (
+                            JobMatchingService.calculate_match_score(
+                                job=job,
+                                profile=profile,
+                                application_experience=application.experience,
+                            )
+                        )
+                        scores_updated = True
 
             application_items.append(
-    {
-        "application_id": application.id,
-        "candidate_id": application.applicant_user_id,
-        "candidate_name": application.name,
-        "applied_at": application.created_at,
-
-        # Scores
-        "ats_score": application.ats_score,
-        "match_score": application.match_score,
-
-        # Application details
-        "experience": application.experience,
-        "stage": application.status,
-
-        # Recruiter assignment
-        "recruiter_id": recruiter_id,
-        "recruiter": recruiter_name,
-        "recruiter_name": recruiter_name,
-    }
-)
+                {
+                    "application_id": application.id,
+                    "candidate_id": application.applicant_user_id,
+                    "candidate_name": application.name,
+                    "applied_at": application.created_at,
+                    "ats_score": application.ats_score,
+                    "match_score": application.match_score,
+                    "experience": application.experience,
+                    "stage": application.status,
+                    "recruiter_id": recruiter_id,
+                    "recruiter": recruiter_name,
+                    "recruiter_name": recruiter_name,
+                }
+            )
 
         # Persist calculated scores so subsequent reads return the
         # same values. No changes are committed if nothing changed.
