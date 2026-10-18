@@ -1,10 +1,11 @@
+
 import base64
-import httpx
 from typing import Any
+
+import httpx
 
 
 class MessageCentralService:
-
     BASE_URL = "https://cpaas.messagecentral.com"
 
     def __init__(
@@ -19,20 +20,24 @@ class MessageCentralService:
         self.password = password
         self.country = country
 
-    # ============================================================
-    # GENERATE AUTH TOKEN
-    # ============================================================
-
     async def generate_auth_token(self) -> str:
+        if not all(
+            [
+                self.customer_id,
+                self.email,
+                self.password,
+                self.country,
+            ]
+        ):
+            raise RuntimeError(
+                "Message Central configuration is incomplete."
+            )
 
         encoded_password = base64.b64encode(
             self.password.encode("utf-8")
         ).decode("utf-8")
 
-        url = (
-            f"{self.BASE_URL}"
-            "/auth/v1/authentication/token"
-        )
+        url = f"{self.BASE_URL}/auth/v1/authentication/token"
 
         params = {
             "customerId": self.customer_id,
@@ -42,43 +47,54 @@ class MessageCentralService:
             "email": self.email,
         }
 
-        headers = {
-            "accept": "*/*",
-        }
+        headers = {"accept": "*/*"}
 
-        async with httpx.AsyncClient(
-            timeout=30.0
-        ) as client:
-
+        async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.get(
                 url,
                 params=params,
                 headers=headers,
             )
 
-        response.raise_for_status()
+        if response.is_error:
+            print(
+                "Message Central AUTH HTTP error:",
+                response.status_code,
+                response.text[:1000],
+            )
+            response.raise_for_status()
 
-        data = response.json()
-
-        token = data.get("token")
-
-        if not token:
+        try:
+            result = response.json()
+        except ValueError as exc:
             raise RuntimeError(
-                f"Message Central token generation failed: {data}"
+                "Message Central authentication returned invalid JSON."
+            ) from exc
+
+        if not isinstance(result, dict):
+            raise RuntimeError(
+                "Unexpected Message Central authentication response."
             )
 
-        return token
+        # Support the common top-level and nested token response shapes.
+        token = result.get("token")
+        if not token and isinstance(result.get("data"), dict):
+            token = result["data"].get("token")
 
-    # ============================================================
-    # SEND OTP
-    # ============================================================
+        if not token:
+            # Do not print the full response because it may contain secrets.
+            print(
+                "Message Central authentication returned no token. "
+                "Response keys:",
+                list(result.keys()),
+            )
+            raise RuntimeError(
+                "Message Central did not return an authentication token."
+            )
 
-    
-    async def send_otp(
-        self,
-        phone: str,
-    ) -> dict[str, Any]:
-        # Validate phone before making API calls.
+        return str(token)
+
+    async def send_otp(self, phone: str) -> dict[str, Any]:
         phone = phone.strip().replace(" ", "").replace("-", "")
 
         if phone.startswith("+91"):
@@ -114,56 +130,61 @@ class MessageCentralService:
                 headers=headers,
             )
 
-        # Log provider errors so the actual cause is visible
-        # in backend deployment logs.
         if response.is_error:
-            print("Message Central SEND status:", response.status_code)
-            print("Message Central SEND response:", response.text)
+            print(
+                "Message Central SEND HTTP error:",
+                response.status_code,
+                response.text[:1000],
+            )
             response.raise_for_status()
 
         try:
-            data = response.json()
+            result = response.json()
         except ValueError as exc:
             raise RuntimeError(
-                "Message Central returned a non-JSON response."
+                "Message Central returned invalid JSON when sending OTP."
             ) from exc
 
-        print("Message Central SEND response:", data)
-
-        if not isinstance(data, dict):
+        if not isinstance(result, dict):
             raise RuntimeError(
-                "Message Central returned an unexpected response format."
+                "Unexpected Message Central OTP response."
             )
 
-        if str(data.get("responseCode")) != "200":
+        print(
+            "Message Central SEND response code:",
+            result.get("responseCode"),
+        )
+
+        # Some APIs serialize response codes as strings.
+        if str(result.get("responseCode")) != "200":
+            print(
+                "Message Central rejected OTP request:",
+                str(result.get("message", "No message provided"))[:500],
+            )
             raise RuntimeError(
-                f"Message Central OTP send failed: {data}"
+                "Message Central rejected the OTP request. "
+                "Check backend logs for the provider response."
             )
 
-        response_data = data.get("data") or {}
-        if not response_data.get("verificationId"):
+        data = result.get("data")
+        if not isinstance(data, dict) or not data.get("verificationId"):
+            print(
+                "Message Central OTP response is missing verificationId."
+            )
             raise RuntimeError(
-                f"Message Central response has no verificationId: {data}"
+                "Message Central did not return a verification ID."
             )
 
-        return data
-
-    # ============================================================
-    # VERIFY OTP
-    # ============================================================
+        return result
 
     async def verify_otp(
         self,
         verification_id: str,
         otp: str,
     ) -> dict[str, Any]:
-
         auth_token = await self.generate_auth_token()
 
-        url = (
-            f"{self.BASE_URL}"
-            "/verification/v3/validateOtp"
-        )
+        url = f"{self.BASE_URL}/verification/v3/validateOtp"
 
         params = {
             "verificationId": verification_id,
@@ -175,36 +196,31 @@ class MessageCentralService:
             "authToken": auth_token,
         }
 
-        # Message Central uses GET for validateOtp
-        async with httpx.AsyncClient(
-            timeout=30.0
-        ) as client:
-
+        async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.get(
                 url,
                 params=params,
                 headers=headers,
             )
 
-        print(
-            "Message Central VERIFY status:",
-            response.status_code,
-        )
+        if response.is_error:
+            print(
+                "Message Central VERIFY HTTP error:",
+                response.status_code,
+                response.text[:1000],
+            )
+            response.raise_for_status()
 
-        print(
-            "Message Central VERIFY response:",
-            response.text,
-        )
-
-        response.raise_for_status()
-
-        data = response.json()
-
-        # IMPORTANT
-        # Always return the response
-        if data is None:
+        try:
+            result = response.json()
+        except ValueError as exc:
             raise RuntimeError(
-                "Message Central returned an empty response."
+                "Message Central returned invalid verification JSON."
+            ) from exc
+
+        if not isinstance(result, dict):
+            raise RuntimeError(
+                "Unexpected Message Central verification response."
             )
 
-        return data
+        return result

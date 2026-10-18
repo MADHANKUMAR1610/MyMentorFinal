@@ -5,6 +5,7 @@ from fastapi import (
     Query,
     status,
 )
+import httpx
 from fastapi.responses import RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -439,6 +440,7 @@ async def google_callback(
 # ============================================================
 
 
+
 @router.post("/otp/send")
 async def send_otp(
     data: OTPSendRequest,
@@ -462,6 +464,18 @@ async def send_otp(
             detail=str(exc),
         )
 
+    except httpx.HTTPStatusError as exc:
+        # Log provider response without exposing it to the client.
+        print(
+            "OTP provider HTTP error:",
+            exc.response.status_code,
+            exc.response.text[:1000],
+        )
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="OTP provider rejected the request. Check backend logs.",
+        )
+
     except Exception as exc:
         import traceback
 
@@ -472,7 +486,6 @@ async def send_otp(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to send OTP. Check backend logs.",
         )
-
 
 @router.post(
     "/otp/verify",
