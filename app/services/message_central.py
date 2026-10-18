@@ -73,54 +73,27 @@ class MessageCentralService:
     # SEND OTP
     # ============================================================
 
+    
     async def send_otp(
         self,
         phone: str,
     ) -> dict[str, Any]:
-
-        auth_token = await self.generate_auth_token()
-
-        # --------------------------------------------------------
-        # CLEAN PHONE
-        # --------------------------------------------------------
-
-        phone = phone.strip()
-
-        phone = phone.replace(
-            " ",
-            "",
-        ).replace(
-            "-",
-            "",
-        )
+        # Validate phone before making API calls.
+        phone = phone.strip().replace(" ", "").replace("-", "")
 
         if phone.startswith("+91"):
             phone = phone[3:]
-
-        elif (
-            phone.startswith("91")
-            and len(phone) == 12
-        ):
+        elif phone.startswith("91") and len(phone) == 12:
             phone = phone[2:]
 
-        if not phone.isdigit():
-            raise ValueError(
-                "Phone number must contain only digits."
-            )
-
-        if len(phone) != 10:
+        if not phone.isdigit() or len(phone) != 10:
             raise ValueError(
                 "Please enter a valid 10-digit Indian mobile number."
             )
 
-        # --------------------------------------------------------
-        # SEND API
-        # --------------------------------------------------------
+        auth_token = await self.generate_auth_token()
 
-        url = (
-            f"{self.BASE_URL}"
-            "/verification/v3/send"
-        )
+        url = f"{self.BASE_URL}/verification/v3/send"
 
         params = {
             "countryCode": self.country,
@@ -134,28 +107,43 @@ class MessageCentralService:
             "authToken": auth_token,
         }
 
-        async with httpx.AsyncClient(
-            timeout=30.0
-        ) as client:
-
+        async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.post(
                 url,
                 params=params,
                 headers=headers,
             )
 
-        response.raise_for_status()
+        # Log provider errors so the actual cause is visible
+        # in backend deployment logs.
+        if response.is_error:
+            print("Message Central SEND status:", response.status_code)
+            print("Message Central SEND response:", response.text)
+            response.raise_for_status()
 
-        data = response.json()
+        try:
+            data = response.json()
+        except ValueError as exc:
+            raise RuntimeError(
+                "Message Central returned a non-JSON response."
+            ) from exc
 
-        print(
-            "Message Central SEND response:",
-            data,
-        )
+        print("Message Central SEND response:", data)
 
-        if data.get("responseCode") != 200:
+        if not isinstance(data, dict):
+            raise RuntimeError(
+                "Message Central returned an unexpected response format."
+            )
+
+        if str(data.get("responseCode")) != "200":
             raise RuntimeError(
                 f"Message Central OTP send failed: {data}"
+            )
+
+        response_data = data.get("data") or {}
+        if not response_data.get("verificationId"):
+            raise RuntimeError(
+                f"Message Central response has no verificationId: {data}"
             )
 
         return data
