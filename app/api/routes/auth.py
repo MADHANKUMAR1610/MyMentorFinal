@@ -438,25 +438,16 @@ async def google_callback(
 # SEND OTP
 # ============================================================
 
-@router.post(
-    "/otp/send",
-)
+
+@router.post("/otp/send")
 async def send_otp(
     data: OTPSendRequest,
-    session: AsyncSession = Depends(
-        get_db
-    ),
+    session: AsyncSession = Depends(get_db),
 ):
-
-    service = AuthService(
-        session
-    )
+    service = AuthService(session)
 
     try:
-
-        result = await service.send_otp(
-            data.phone
-        )
+        result = await service.send_otp(data.phone)
 
         return {
             "success": True,
@@ -465,22 +456,21 @@ async def send_otp(
         }
 
     except ValueError as exc:
-
+        print("OTP validation error:", repr(exc))
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(exc),
         )
 
     except Exception as exc:
+        import traceback
 
-        print(
-            "OTP Send Error:",
-            exc
-        )
+        print("OTP SEND FAILURE:", repr(exc))
+        traceback.print_exc()
 
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to send OTP.",
+            detail="Failed to send OTP. Check backend logs.",
         )
 
 
