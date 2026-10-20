@@ -1,5 +1,5 @@
-
 import base64
+import json
 from typing import Any
 
 import httpx
@@ -20,7 +20,49 @@ class MessageCentralService:
         self.password = password
         self.country = country
 
+    @staticmethod
+    def _safe_error_details(result: Any) -> str:
+        """
+        Extract useful error details without logging credentials
+        or authentication tokens.
+        """
+        if not isinstance(result, dict):
+            return str(result)[:1000]
+
+        safe_result = {}
+
+        for key in (
+            "status",
+            "responseCode",
+            "message",
+            "error",
+            "errorMessage",
+            "error_description",
+            "timestamp",
+            "path",
+        ):
+            if key in result:
+                value = result[key]
+
+                # Do not expose token-like values.
+                if key.lower() in {
+                    "token",
+                    "authtoken",
+                    "accesstoken",
+                    "password",
+                    "key",
+                }:
+                    continue
+
+                safe_result[key] = value
+
+        return json.dumps(safe_result, default=str)[:1000]
+
     async def generate_auth_token(self) -> str:
+        """
+        Generate an authentication token using Message Central.
+        """
+
         if not all(
             [
                 self.customer_id,
@@ -30,14 +72,17 @@ class MessageCentralService:
             ]
         ):
             raise RuntimeError(
-                "Message Central configuration is incomplete."
+                "Message Central configuration is incomplete. "
+                "Check the MESSAGECENTRAL environment variables."
             )
 
         encoded_password = base64.b64encode(
             self.password.encode("utf-8")
         ).decode("utf-8")
 
-        url = f"{self.BASE_URL}/auth/v1/authentication/token"
+        url = (
+            f"{self.BASE_URL}/auth/v1/authentication/token"
+        )
 
         params = {
             "customerId": self.customer_id,
@@ -47,55 +92,116 @@ class MessageCentralService:
             "email": self.email,
         }
 
-        headers = {"accept": "*/*"}
+        headers = {
+            "accept": "*/*",
+        }
 
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.get(
-                url,
-                params=params,
-                headers=headers,
-            )
+        try:
+            async with httpx.AsyncClient(
+                timeout=30.0
+            ) as client:
+                response = await client.get(
+                    url,
+                    params=params,
+                    headers=headers,
+                )
 
-        if response.is_error:
+        except httpx.TimeoutException as exc:
             print(
-                "Message Central AUTH HTTP error:",
-                response.status_code,
-                response.text[:1000],
+                "Message Central AUTH error: "
+                "Request timed out."
             )
-            response.raise_for_status()
+            raise RuntimeError(
+                "Message Central authentication timed out."
+            ) from exc
+
+        except httpx.RequestError as exc:
+            # Do not print the request URL because it contains
+            # encoded credentials in its query parameters.
+            print(
+                "Message Central AUTH connection error:",
+                type(exc).__name__,
+            )
+            raise RuntimeError(
+                "Unable to connect to Message Central."
+            ) from exc
 
         try:
             result = response.json()
-        except ValueError as exc:
-            raise RuntimeError(
-                "Message Central authentication returned invalid JSON."
-            ) from exc
+        except ValueError:
+            result = None
 
-        if not isinstance(result, dict):
-            raise RuntimeError(
-                "Unexpected Message Central authentication response."
+        if response.is_error:
+            print(
+                "Message Central AUTH HTTP status:",
+                response.status_code,
             )
 
-        # Support the common top-level and nested token response shapes.
+            if result is not None:
+                print(
+                    "Message Central AUTH provider error:",
+                    self._safe_error_details(result),
+                )
+            else:
+                print(
+                    "Message Central AUTH returned "
+                    "a non-JSON error response."
+                )
+
+            raise RuntimeError(
+                "Message Central authentication failed "
+                f"(HTTP {response.status_code}). "
+                "Check the provider error in backend logs."
+            )
+
+        if not isinstance(result, dict):
+            print(
+                "Message Central AUTH error: "
+                "Response was not a JSON object."
+            )
+            raise RuntimeError(
+                "Message Central returned an unexpected "
+                "authentication response."
+            )
+
+        # Support common token response formats.
         token = result.get("token")
+
         if not token and isinstance(result.get("data"), dict):
             token = result["data"].get("token")
 
         if not token:
-            # Do not print the full response because it may contain secrets.
             print(
-                "Message Central authentication returned no token. "
-                "Response keys:",
-                list(result.keys()),
+                "Message Central AUTH status:",
+                str(result.get("status", "Unknown"))[:200],
             )
+
+            print(
+                "Message Central AUTH provider error:",
+                self._safe_error_details(result),
+            )
+
             raise RuntimeError(
-                "Message Central did not return an authentication token."
+                "Message Central did not return an "
+                "authentication token. Check provider "
+                "credentials and the response format."
             )
 
         return str(token)
 
-    async def send_otp(self, phone: str) -> dict[str, Any]:
-        phone = phone.strip().replace(" ", "").replace("-", "")
+    async def send_otp(
+        self,
+        phone: str,
+    ) -> dict[str, Any]:
+        """
+        Send a six-digit SMS OTP to an Indian mobile number.
+        """
+
+        phone = (
+            phone.strip()
+            .replace(" ", "")
+            .replace("-", "")
+        )
 
         if phone.startswith("+91"):
             phone = phone[3:]
@@ -104,7 +210,8 @@ class MessageCentralService:
 
         if not phone.isdigit() or len(phone) != 10:
             raise ValueError(
-                "Please enter a valid 10-digit Indian mobile number."
+                "Please enter a valid 10-digit Indian "
+                "mobile number."
             )
 
         auth_token = await self.generate_auth_token()
@@ -123,56 +230,93 @@ class MessageCentralService:
             "authToken": auth_token,
         }
 
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.post(
-                url,
-                params=params,
-                headers=headers,
-            )
+        try:
+            async with httpx.AsyncClient(
+                timeout=30.0
+            ) as client:
+                response = await client.post(
+                    url,
+                    params=params,
+                    headers=headers,
+                )
 
-        if response.is_error:
+        except httpx.TimeoutException as exc:
             print(
-                "Message Central SEND HTTP error:",
-                response.status_code,
-                response.text[:1000],
+                "Message Central SEND error: "
+                "Request timed out."
             )
-            response.raise_for_status()
+            raise RuntimeError(
+                "The OTP provider request timed out."
+            ) from exc
+
+        except httpx.RequestError as exc:
+            print(
+                "Message Central SEND connection error:",
+                type(exc).__name__,
+            )
+            raise RuntimeError(
+                "Unable to connect to the OTP provider."
+            ) from exc
 
         try:
             result = response.json()
-        except ValueError as exc:
+        except ValueError:
+            result = None
+
+        if response.is_error:
+            print(
+                "Message Central SEND HTTP status:",
+                response.status_code,
+            )
+
+            if result is not None:
+                print(
+                    "Message Central SEND provider error:",
+                    self._safe_error_details(result),
+                )
+
             raise RuntimeError(
-                "Message Central returned invalid JSON when sending OTP."
-            ) from exc
+                "Message Central failed to send the OTP. "
+                f"HTTP status: {response.status_code}."
+            )
 
         if not isinstance(result, dict):
             raise RuntimeError(
-                "Unexpected Message Central OTP response."
+                "Message Central returned an unexpected "
+                "OTP response."
             )
+
+        response_code = str(result.get("responseCode", ""))
 
         print(
             "Message Central SEND response code:",
-            result.get("responseCode"),
+            response_code or "Missing",
         )
 
-        # Some APIs serialize response codes as strings.
-        if str(result.get("responseCode")) != "200":
+        if response_code != "200":
             print(
-                "Message Central rejected OTP request:",
-                str(result.get("message", "No message provided"))[:500],
+                "Message Central SEND provider error:",
+                self._safe_error_details(result),
             )
+
             raise RuntimeError(
                 "Message Central rejected the OTP request. "
-                "Check backend logs for the provider response."
+                "Check the provider error in backend logs."
             )
 
         data = result.get("data")
-        if not isinstance(data, dict) or not data.get("verificationId"):
+
+        if (
+            not isinstance(data, dict)
+            or not data.get("verificationId")
+        ):
             print(
-                "Message Central OTP response is missing verificationId."
+                "Message Central SEND error: "
+                "verificationId is missing."
             )
             raise RuntimeError(
-                "Message Central did not return a verification ID."
+                "Message Central did not return a "
+                "verification ID."
             )
 
         return result
@@ -182,9 +326,28 @@ class MessageCentralService:
         verification_id: str,
         otp: str,
     ) -> dict[str, Any]:
+        """
+        Verify the OTP using the provider's verification ID.
+        """
+
+        verification_id = verification_id.strip()
+        otp = otp.strip()
+
+        if not verification_id:
+            raise ValueError(
+                "Verification ID is required."
+            )
+
+        if not otp.isdigit() or len(otp) != 6:
+            raise ValueError(
+                "Please enter a valid six-digit OTP."
+            )
+
         auth_token = await self.generate_auth_token()
 
-        url = f"{self.BASE_URL}/verification/v3/validateOtp"
+        url = (
+            f"{self.BASE_URL}/verification/v3/validateOtp"
+        )
 
         params = {
             "verificationId": verification_id,
@@ -196,31 +359,66 @@ class MessageCentralService:
             "authToken": auth_token,
         }
 
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.get(
-                url,
-                params=params,
-                headers=headers,
-            )
+        try:
+            async with httpx.AsyncClient(
+                timeout=30.0
+            ) as client:
+                response = await client.get(
+                    url,
+                    params=params,
+                    headers=headers,
+                )
 
-        if response.is_error:
+        except httpx.TimeoutException as exc:
             print(
-                "Message Central VERIFY HTTP error:",
-                response.status_code,
-                response.text[:1000],
+                "Message Central VERIFY error: "
+                "Request timed out."
             )
-            response.raise_for_status()
+            raise RuntimeError(
+                "OTP verification timed out."
+            ) from exc
+
+        except httpx.RequestError as exc:
+            print(
+                "Message Central VERIFY connection error:",
+                type(exc).__name__,
+            )
+            raise RuntimeError(
+                "Unable to connect to the OTP provider "
+                "for verification."
+            ) from exc
 
         try:
             result = response.json()
-        except ValueError as exc:
+        except ValueError:
+            result = None
+
+        if response.is_error:
+            print(
+                "Message Central VERIFY HTTP status:",
+                response.status_code,
+            )
+
+            if result is not None:
+                print(
+                    "Message Central VERIFY provider error:",
+                    self._safe_error_details(result),
+                )
+
             raise RuntimeError(
-                "Message Central returned invalid verification JSON."
-            ) from exc
+                "Message Central OTP verification request "
+                f"failed (HTTP {response.status_code})."
+            )
 
         if not isinstance(result, dict):
             raise RuntimeError(
-                "Unexpected Message Central verification response."
+                "Message Central returned an unexpected "
+                "verification response."
             )
+
+        print(
+            "Message Central VERIFY response code:",
+            str(result.get("responseCode", "Missing")),
+        )
 
         return result
